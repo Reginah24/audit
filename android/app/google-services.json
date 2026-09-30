@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "259167861950",
+    "project_id": "giraphe-govt-checkin",
+    "storage_bucket": "giraphe-govt-checkin.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:259167861950:android:d0bbf5839b043f8ff832ef",
+        "android_client_info": {
+          "package_name": "com.example.govt_checkin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCgzjRF2j_GOfF-8UyDK2aC4TV41oLnPd4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:259167861950:android:a010cef52ea53831f832ef",
+        "android_client_info": {
+          "package_name": "com.giraphe.govt"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCgzjRF2j_GOfF-8UyDK2aC4TV41oLnPd4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

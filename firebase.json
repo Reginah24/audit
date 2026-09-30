@@ -1,0 +1,37 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "giraphe-govt-checkin",
+          "appId": "1:259167861950:android:d0bbf5839b043f8ff832ef",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "giraphe-govt-checkin",
+          "configurations": {
+            "android": "1:259167861950:android:d0bbf5839b043f8ff832ef",
+            "web": "1:259167861950:web:b76f39b1eb39c532f832ef",
+            "windows": "1:259167861950:web:b76f39b1eb39c532f832ef"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
