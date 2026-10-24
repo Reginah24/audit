@@ -1,149 +1,103 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import '../admin_config.dart';
 import '../theme.dart';
+import '../widgets/formal.dart';
 import 'home_screen.dart';
 import 'my_record_screen.dart';
 import 'govt_report_screen.dart';
 
 /// First screen anyone sees, whether on the tablet or the public web link.
-/// Three destinations, each named for what the person is there to do —
-/// not for who they are.
+/// Three destinations, each named for what the person is there to do.
 class LandingScreen extends StatelessWidget {
   const LandingScreen({super.key});
+
+  void _open(BuildContext context, Widget screen) =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: GiColors.beige,
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Giraphe',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.fraunces(
-                      fontSize: 44,
-                      fontWeight: FontWeight.w600,
-                      color: GiColors.espresso,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Meal check-in',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.workSans(
-                      fontSize: 15,
-                      color: GiColors.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 44),
-                  _RoleCard(
-                    icon: Icons.storefront_outlined,
-                    title: 'Log meals',
-                    subtitle: 'For restaurant staff at the till',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const HomeScreen()),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  _RoleCard(
-                    icon: Icons.badge_outlined,
-                    title: 'Check my meals',
-                    subtitle: 'See your own record and log today',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const MyRecordScreen()),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  _RoleCard(
-                    icon: Icons.summarize_outlined,
-                    title: 'View the report',
-                    subtitle: 'Monthly summary for the office',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const GovtReportScreen()),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RoleCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _RoleCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: GiColors.cream,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: GiColors.hairline),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: const BoxDecoration(
-                  color: GiColors.beige,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: GiColors.rust, size: 24),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
+        child: SingleChildScrollView(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 36, 20, 32),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(title,
-                        style: GoogleFonts.fraunces(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: GiColors.espresso,
-                        )),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: GoogleFonts.workSans(
-                          fontSize: 13,
-                          color: GiColors.muted,
-                        )),
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: GiColors.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.restaurant,
+                              color: Colors.white, size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(restaurantName, style: giHeading(size: 18)),
+                              Text(officeName,
+                                  style:
+                                      giBody(size: 14, color: GiColors.muted)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 40),
+                    Text('STAFF MEAL SERVICE', style: giLabel()),
+                    const SizedBox(height: 8),
+                    Text(DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
+                        style: giHeading(size: 30)),
+                    const SizedBox(height: 32),
+                    MenuCard(
+                      icon: Icons.storefront_outlined,
+                      title: 'Restaurant counter',
+                      description: 'Record meals and see how many to prepare',
+                      onTap: () => _open(context, const HomeScreen()),
+                    ),
+                    const SizedBox(height: 14),
+                    MenuCard(
+                      icon: Icons.badge_outlined,
+                      title: 'My meals',
+                      description: 'Confirm tomorrow and show your meal pass',
+                      onTap: () => _open(context, const MyRecordScreen()),
+                    ),
+                    const SizedBox(height: 14),
+                    MenuCard(
+                      icon: Icons.assessment_outlined,
+                      title: 'Reports',
+                      description: 'Daily and monthly records for the office',
+                      onTap: () => _open(context, const GovtReportScreen()),
+                    ),
+                    const SizedBox(height: 32),
+                    Row(
+                      children: [
+                        const Icon(Icons.verified_user_outlined,
+                            color: GiColors.muted, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                              'Records are signed in, time-stamped by the '
+                              'server and cannot be altered.',
+                              style: giBody(size: 14, color: GiColors.muted)),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: GiColors.muted),
-            ],
+            ),
           ),
         ),
       ),

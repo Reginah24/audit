@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'auth.dart';
 import 'firebase_options.dart';
 import 'theme.dart';
 import 'screens/landing_screen.dart';
@@ -11,6 +12,7 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await initEmployeeApp();
   runApp(const GiraphApp());
 }
 
@@ -20,7 +22,7 @@ class GiraphApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Giraphe',
+      title: 'Giraphe Meal App',
       theme: buildGiTheme(),
       initialRoute: '/',
       routes: {
