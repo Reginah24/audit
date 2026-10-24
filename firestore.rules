@@ -1,0 +1,131 @@
+rules_version = '2';
+
+// These rules are what actually protects the data. The app's screens can
+// be copied or changed by anyone with the link, so every "who may do what"
+// decision is made here, on Google's servers.
+//
+// Publish with:  firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- EDIT THESE: the sign-in emails allowed in --------------------
+    // Restaurant accounts: record meals, plan, print badges, see reports.
+    function isStaff() {
+      return request.auth != null
+        && request.auth.token.email in ['anthonyregina48@gmail.com'];
+    }
+    // Office accounts: read-only access to the reports.
+    function isOffice() {
+      return request.auth != null
+        && request.auth.token.email in ['audit@gmail.com'];
+    }
+    // --------------------------------------------------------------------
+
+    // Employees sign in with their name + PIN; behind the scenes that's a
+    // login whose email is their employee id at this made-up domain
+    // (see lib/auth.dart). Firebase stores emails in lower case.
+    function isEmployee(employeeId) {
+      return request.auth != null
+        && request.auth.token.email == employeeId.lower() + '@employees.giraphe.app';
+    }
+
+    function canReport() {
+      return isStaff() || isOffice();
+    }
+
+    // Records keyed "<date>_<employeeId>" — the employee id is the part
+    // after the underscore (Firestore ids never contain one).
+    function employeeOf(docId) {
+      return docId.split('_')[1];
+    }
+
+    function employeeExists(employeeId) {
+      return exists(/databases/$(database)/documents/employees/$(employeeId));
+    }
+
+    // Names and departments only — readable so an employee can find their
+    // name before signing in. PINs are never stored here.
+    match /employees/{id} {
+      allow read: if true;
+      // Every person added carries who added them and when (set by the
+      // server), so the office can see that nobody was invented.
+      allow create: if isStaff()
+        && request.resource.data.keys().hasOnly(
+             ['name', 'department', 'addedBy', 'addedAt', 'source'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.department is string
+        && request.resource.data.department.size() <= 100
+        && request.resource.data.addedBy == request.auth.token.email
+        && request.resource.data.addedAt == request.time
+        && request.resource.data.source in ['roster', 'counter'];
+      // The restaurant may only clear old PIN fields; it can't rename
+      // people or rewrite who added them.
+      allow update: if (isStaff()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pin']))
+        || (isEmployee(id)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinSet'])
+            && request.resource.data.pinSet == true);
+      allow delete: if false;
+    }
+
+    // The secret part of each badge. Reprinting a lost badge changes it,
+    // which makes the old card stop working.
+    match /badges/{id} {
+      allow read: if isStaff() || isEmployee(id);
+      allow write: if isStaff() && employeeExists(id);
+    }
+
+    // One meal. Only the restaurant can record one, the time is set by the
+    // server (a wrong or changed tablet clock can't backdate it), and it
+    // can never be edited. It can only be removed by filing a correction
+    // in voided_checkins in the same step.
+    match /checkins/{id} {
+      allow read: if canReport() || isEmployee(resource.data.employeeId);
+      allow create: if isStaff()
+        && id == request.resource.data.date + '_' + request.resource.data.employeeId
+        && request.resource.data.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && request.resource.data.timestamp == request.time
+        && request.resource.data.method in ['scan', 'tap']
+        && request.resource.data.recordedBy == request.auth.token.email
+        && employeeExists(request.resource.data.employeeId);
+      allow update: if false;
+      allow delete: if isStaff()
+        && existsAfter(/databases/$(database)/documents/voided_checkins/$(id));
+    }
+
+    // Permanent record of every meal the restaurant removed: who, when,
+    // and the original meal. Shown on the office's report. Can't be
+    // changed or deleted by anyone using the app.
+    match /voided_checkins/{id} {
+      allow read: if canReport();
+      allow create: if isStaff()
+        && exists(/databases/$(database)/documents/checkins/$(id))
+        && request.resource.data.voidedAt == request.time
+        && request.resource.data.voidedBy == request.auth.token.email;
+      allow update, delete: if false;
+    }
+
+    // "Will I eat here that day?" — answered by the employee or set by
+    // the restaurant.
+    match /attendance/{id} {
+      allow read: if canReport() || isEmployee(employeeOf(id));
+      allow create, update: if (isStaff() || isEmployee(request.resource.data.employeeId))
+        && id == request.resource.data.date + '_' + request.resource.data.employeeId
+        && request.resource.data.coming is bool
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.updatedBy == request.auth.token.email
+        && employeeExists(request.resource.data.employeeId);
+      allow delete: if isStaff();
+    }
+
+    // Someone tried to get a second meal.
+    match /duplicate_attempts/{id} {
+      allow read: if canReport();
+      allow create: if isStaff();
+      allow update, delete: if false;
+    }
+  }
+}
