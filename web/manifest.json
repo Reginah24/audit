@@ -1,12 +1,12 @@
 {
-    "name": "govt_checkin",
-    "short_name": "govt_checkin",
+    "name": "Giraphe Meal App",
+    "short_name": "Giraphe Meals",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#F5F1EA",
+    "theme_color": "#2E5A4B",
+    "description": "Staff meal check-in for the Office of the Auditor General.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {
