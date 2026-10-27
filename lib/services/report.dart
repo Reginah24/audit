@@ -21,11 +21,19 @@ class DayRow {
   /// Ate without having said yes — the kitchen didn't plan for them.
   bool get unplanned => ate && !saidYes;
 
+  /// Said they would not come, but came and ate.
+  bool get ateSaidNo => ate && saidNo;
+
+  /// Never said whether they would come (no account, or didn't answer),
+  /// but came and ate.
+  bool get ateUnregistered => ate && attendance == null;
+
   String get comingLabel => saidYes ? 'Yes' : (saidNo ? 'No' : 'No answer');
 
   String get note {
     if (noShow) return 'Said yes, did not eat';
-    if (unplanned) return 'Ate without booking';
+    if (ateSaidNo) return 'Said no, but ate';
+    if (ateUnregistered) return 'Did not register, but ate';
     return '';
   }
 }
@@ -44,9 +52,11 @@ class DayReport {
   DayReport(this.date, this.rows,
       [this.corrections = const [], this.added = const []]);
 
+  /// [roster] is that week's roster (employee ids), if the office set one:
+  /// then only people on it — or who answered or ate that day — are listed.
   factory DayReport.build(String date, List<Employee> employees,
       List<CheckIn> checkIns, List<Attendance> attendance,
-      [List<VoidedCheckIn> voided = const []]) {
+      [List<VoidedCheckIn> voided = const [], Set<String>? roster]) {
     final meals = {
       for (final c in checkIns.where((c) => c.date == date)) c.employeeId: c,
     };
@@ -54,9 +64,19 @@ class DayReport {
       for (final a in attendance.where((a) => a.date == date)) a.employeeId: a,
     };
 
-    // Someone added on the 24th wasn't expected to eat on the 20th.
-    final onList = employees.where(
-        (e) => e.addedAt == null || dateKey(e.addedAt!).compareTo(date) <= 0);
+    // Someone added on the 24th wasn't expected to eat on the 20th, and
+    // someone taken off the list (or an old duplicate record) only shows
+    // if they answered or ate that day.
+    // A week's roster decides who was expected, even before they were
+    // entered in the app (weeks filled in later from the paper lists).
+    final onList = employees.where((e) =>
+        answers.containsKey(e.id) ||
+        meals.containsKey(e.id) ||
+        (e.active &&
+            (roster != null
+                ? roster.contains(e.id)
+                : e.addedAt == null ||
+                    dateKey(e.addedAt!).compareTo(date) <= 0)));
     final rows = [
       for (final e in onList) DayRow(e, answers[e.id], meals[e.id]),
     ];
@@ -91,6 +111,8 @@ class DayReport {
   int get didNotEat => total - ate;
   int get noShows => rows.where((r) => r.noShow).length;
   int get unplanned => rows.where((r) => r.unplanned).length;
+  int get ateSaidNo => rows.where((r) => r.ateSaidNo).length;
+  int get ateUnregistered => rows.where((r) => r.ateUnregistered).length;
 }
 
 /// One employee's totals for the monthly report.
@@ -99,6 +121,7 @@ class MonthRow {
   int meals = 0;
   int booked = 0;
   int noShows = 0;
+  int unplanned = 0;
 
   MonthRow(this.employee);
 }
@@ -128,7 +151,8 @@ class MonthReport {
       List<Attendance> attendance, String todayKey,
       [List<VoidedCheckIn> voided = const [],
       String startKey = '',
-      String endKey = '']) {
+      String endKey = '',
+      Map<String, Set<String>> rosters = const {}]) {
     final dates = {
       ...checkIns.map((c) => c.date),
       ...attendance.map((a) => a.date),
@@ -141,13 +165,15 @@ class MonthReport {
     final days = <MonthDay>[];
 
     for (final date in dates.where((d) => d.compareTo(todayKey) <= 0)) {
-      final day = DayReport.build(date, employees, checkIns, attendance);
+      final day = DayReport.build(date, employees, checkIns, attendance,
+          const [], rosters[dateKey(mondayOf(parseDateKey(date)))]);
       days.add(MonthDay(date, day.saidYes, day.ate));
       for (final r in day.rows) {
         final row = byId.putIfAbsent(r.employee.id, () => MonthRow(r.employee));
         if (r.ate) row.meals++;
         if (r.saidYes) row.booked++;
         if (r.noShow) row.noShows++;
+        if (r.unplanned) row.unplanned++;
       }
     }
 
@@ -162,6 +188,7 @@ class MonthReport {
   int get totalMeals => rows.fold(0, (sum, r) => sum + r.meals);
   int get totalBooked => rows.fold(0, (sum, r) => sum + r.booked);
   int get totalNoShows => rows.fold(0, (sum, r) => sum + r.noShows);
+  int get totalUnplanned => rows.fold(0, (sum, r) => sum + r.unplanned);
 }
 
 /// People added at the restaurant counter (not from the office's list)

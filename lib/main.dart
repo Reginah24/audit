@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'auth.dart';
 import 'firebase_options.dart';
 import 'theme.dart';
-import 'screens/landing_screen.dart';
+import 'screens/role_login_screen.dart';
 import 'screens/govt_report_screen.dart';
 import 'screens/my_record_screen.dart';
 
@@ -26,7 +26,7 @@ class GiraphApp extends StatelessWidget {
       theme: buildGiTheme(),
       initialRoute: '/',
       routes: {
-        '/': (context) => const LandingScreen(),
+        '/': (context) => const RoleLoginScreen(),
         '/report': (context) => const GovtReportScreen(),
         '/my-record': (context) => const MyRecordScreen(),
       },

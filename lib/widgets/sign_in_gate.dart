@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../auth.dart';
 import '../theme.dart';
+import '../screens/role_login_screen.dart';
 
 /// Shows a sign-in form until someone with the right account is signed in,
 /// then shows [builder]. "Right account" is decided by the database rules:
@@ -53,6 +54,15 @@ class _SignInGateState extends State<SignInGate> {
     }
   }
 
+  void _backToRoleSelection() {
+    FirebaseAuth.instance.signOut();
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const RoleLoginScreen()),
+      (route) => false,
+    );
+  }
+
   Future<void> _check(String uid) async {
     _checkedUid = uid;
     _access = _Access.checking;
@@ -93,7 +103,7 @@ class _SignInGateState extends State<SignInGate> {
           _Access.allowed => widget.builder(context),
           _Access.checking => Scaffold(
               backgroundColor: GiColors.paper,
-              appBar: AppBar(title: Text(widget.title.toUpperCase())),
+              appBar: _buildAppBar(),
               body: const Center(child: CircularProgressIndicator()),
             ),
           _Access.denied => _buildMessage(
@@ -109,7 +119,7 @@ class _SignInGateState extends State<SignInGate> {
   Widget _buildMessage(String message, {VoidCallback? retry}) {
     return Scaffold(
       backgroundColor: GiColors.paper,
-      appBar: AppBar(title: Text(widget.title.toUpperCase())),
+      appBar: _buildAppBar(),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 400),
@@ -143,7 +153,7 @@ class _SignInGateState extends State<SignInGate> {
   Widget _buildForm() {
     return Scaffold(
       backgroundColor: GiColors.paper,
-      appBar: AppBar(title: Text(widget.title.toUpperCase())),
+      appBar: _buildAppBar(),
       body: Center(
         child: SingleChildScrollView(
           child: ConstrainedBox(
@@ -209,6 +219,17 @@ class _SignInGateState extends State<SignInGate> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: Text(widget.title.toUpperCase()),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        tooltip: 'Back to role selection',
+        onPressed: _backToRoleSelection,
       ),
     );
   }

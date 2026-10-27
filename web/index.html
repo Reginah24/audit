@@ -34,6 +34,39 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    window.extractPdfTextWithOcr = async function (bytes) {
+      if (!window.pdfjsLib || !window.Tesseract) {
+        throw new Error("OCR libraries are still loading. Try again.");
+      }
+      const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      const pdf = await pdfjsLib.getDocument({data}).promise;
+      const worker = await Tesseract.createWorker("eng");
+      let text = "";
+      try {
+        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+          const page = await pdf.getPage(pageNumber);
+          const viewport = page.getViewport({scale: 2});
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({
+            canvasContext: canvas.getContext("2d"),
+            viewport
+          }).promise;
+          const result = await worker.recognize(canvas);
+          text += result.data.text + "\n";
+        }
+      } finally {
+        await worker.terminate();
+      }
+      return text;
+    };
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

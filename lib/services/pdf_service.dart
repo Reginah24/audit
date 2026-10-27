@@ -8,6 +8,7 @@ import '../dates.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/check_in.dart';
 import '../models/employee.dart';
+import '../models/guest_meal.dart';
 import 'report.dart';
 
 // The built-in PDF font only covers basic Latin characters, so the text in
@@ -95,7 +96,8 @@ pw.Widget _table(List<String> headers, List<List<String>> rows,
   );
 }
 
-Future<Uint8List> buildDayReportPdf(DayReport report) async {
+Future<Uint8List> buildDayReportPdf(
+    DayReport report, List<GuestMeal> guests) async {
   final day = parseDateKey(report.date);
   final doc = pw.Document(title: 'Meal report ${report.date}');
 
@@ -106,57 +108,7 @@ Future<Uint8List> buildDayReportPdf(DayReport report) async {
         '${DateFormat('EEEE d MMMM yyyy').format(day)} - $restaurantName'),
     footer: _footer,
     build: (_) => [
-      pw.Row(children: [
-        _stat('Employees', report.total),
-        _stat('Said they would eat', report.saidYes),
-        _stat('Ate', report.ate),
-        _stat('Did not eat', report.didNotEat),
-        _stat('Said yes, did not eat', report.noShows),
-        _stat('Ate without booking', report.unplanned),
-        _stat('Corrections', report.corrections.length),
-      ]),
-      pw.SizedBox(height: 14),
-      _table(
-        [
-          '#',
-          'Name',
-          'Department',
-          'Said coming',
-          'Ate',
-          'Time',
-          'How',
-          'Note'
-        ],
-        [
-          for (var i = 0; i < report.rows.length; i++)
-            () {
-              final r = report.rows[i];
-              return [
-                '${i + 1}',
-                r.employee.name,
-                r.employee.department,
-                r.comingLabel,
-                r.ate ? 'Yes' : 'No',
-                r.meal == null
-                    ? ''
-                    : DateFormat('HH:mm').format(r.meal!.timestamp.toDate()),
-                r.meal?.methodLabel ?? '',
-                r.note,
-              ];
-            }(),
-        ],
-        widths: const {
-          0: pw.FixedColumnWidth(22),
-          1: pw.FlexColumnWidth(3),
-          2: pw.FlexColumnWidth(2),
-          3: pw.FlexColumnWidth(1.4),
-          4: pw.FixedColumnWidth(28),
-          5: pw.FixedColumnWidth(34),
-          6: pw.FlexColumnWidth(1.6),
-          7: pw.FlexColumnWidth(2.2),
-        },
-      ),
-      ..._addedSection(report.added),
+      ..._daySummarySection(report, guests),
       ..._correctionsSection(report.corrections),
       pw.SizedBox(height: 30),
       _signatureLines(),
@@ -167,7 +119,7 @@ Future<Uint8List> buildDayReportPdf(DayReport report) async {
 }
 
 Future<Uint8List> buildMonthReportPdf(
-    DateTime month, MonthReport report) async {
+    DateTime month, MonthReport report, int guestMeals) async {
   final doc =
       pw.Document(title: 'Meal report ${DateFormat('yyyy-MM').format(month)}');
 
@@ -181,6 +133,7 @@ Future<Uint8List> buildMonthReportPdf(
       pw.Row(children: [
         _stat('Days served', report.days.length),
         _stat('Meals eaten', report.totalMeals),
+        _stat('Guest meals', guestMeals),
         _stat('Meals booked', report.totalBooked),
         _stat('Booked, not eaten', report.totalNoShows),
         _stat('Corrections', report.corrections.length),
@@ -197,7 +150,8 @@ Future<Uint8List> buildMonthReportPdf(
           'Department',
           'Meals eaten',
           'Days booked',
-          'Booked, not eaten'
+          'Booked, not eaten',
+          'Ate, not booked'
         ],
         [
           for (var i = 0; i < report.rows.length; i++)
@@ -208,6 +162,7 @@ Future<Uint8List> buildMonthReportPdf(
               '${report.rows[i].meals}',
               '${report.rows[i].booked}',
               '${report.rows[i].noShows}',
+              '${report.rows[i].unplanned}',
             ],
           [
             '',
@@ -215,7 +170,8 @@ Future<Uint8List> buildMonthReportPdf(
             '',
             '${report.totalMeals}',
             '${report.totalBooked}',
-            '${report.totalNoShows}'
+            '${report.totalNoShows}',
+            '${report.totalUnplanned}'
           ],
         ],
         widths: const {
@@ -225,6 +181,7 @@ Future<Uint8List> buildMonthReportPdf(
           3: pw.FlexColumnWidth(1.2),
           4: pw.FlexColumnWidth(1.2),
           5: pw.FlexColumnWidth(1.4),
+          6: pw.FlexColumnWidth(1.4),
         },
       ),
       pw.SizedBox(height: 18),
@@ -251,6 +208,49 @@ Future<Uint8List> buildMonthReportPdf(
   ));
 
   return doc.save();
+}
+
+/// The day as the office writes it: the total who ate (staff and guests),
+/// then each exception with its names and count. Nobody else is listed.
+List<pw.Widget> _daySummarySection(DayReport report, List<GuestMeal> guests) {
+  final groups = [
+    ('Not on the list, but came', report.rows.where((r) => r.ateUnregistered)),
+    (
+      'Had blue (said they would not come), but came',
+      report.rows.where((r) => r.ateSaidNo)
+    ),
+    ('Registered but did not come', report.rows.where((r) => r.noShow)),
+  ];
+  const bold = pw.TextStyle(fontWeight: pw.FontWeight.bold, color: _ink);
+  return [
+    pw.Text('Total who ate: ${report.ate + guests.length}',
+        style: const pw.TextStyle(
+            fontSize: 16, fontWeight: pw.FontWeight.bold, color: _ink)),
+    pw.Text('Staff ${report.ate} + guests ${guests.length}',
+        style: const pw.TextStyle(fontSize: 10, color: _muted)),
+    pw.SizedBox(height: 16),
+    for (final (title, rows) in groups) ...[
+      pw.Text('$title: ${rows.length}', style: bold),
+      pw.SizedBox(height: 3),
+      if (rows.isEmpty)
+        pw.Text('None.', style: const pw.TextStyle(fontSize: 9, color: _muted))
+      else
+        for (final (i, r) in rows.indexed)
+          pw.Text(
+              '${i + 1}. ${r.employee.name}'
+              '${r.employee.department.isEmpty ? '' : ' (${r.employee.department})'}',
+              style: const pw.TextStyle(fontSize: 10, color: _ink)),
+      pw.SizedBox(height: 12),
+    ],
+    pw.Text('Guests: ${guests.length}', style: bold),
+    pw.SizedBox(height: 3),
+    if (guests.isEmpty)
+      pw.Text('None.', style: const pw.TextStyle(fontSize: 9, color: _muted))
+    else
+      for (final (i, g) in guests.indexed)
+        pw.Text('${i + 1}. ${g.name}${g.note.isEmpty ? '' : ' (${g.note})'}',
+            style: const pw.TextStyle(fontSize: 10, color: _ink)),
+  ];
 }
 
 /// People added at the restaurant counter (not on the office's list).

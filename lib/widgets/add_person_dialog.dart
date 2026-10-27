@@ -12,20 +12,25 @@ Future<Employee?> showAddPerson(
   BuildContext context, {
   required List<Employee> existing,
   String initialName = '',
+  bool rosterOnly = false,
 }) {
   return showDialog<Employee>(
     context: context,
     barrierDismissible: false,
-    builder: (_) =>
-        _AddPersonDialog(existing: existing, initialName: initialName),
+    builder: (_) => _AddPersonDialog(
+        existing: existing, initialName: initialName, rosterOnly: rosterOnly),
   );
 }
 
 class _AddPersonDialog extends StatefulWidget {
   final List<Employee> existing;
   final String initialName;
+  final bool rosterOnly;
 
-  const _AddPersonDialog({required this.existing, required this.initialName});
+  const _AddPersonDialog(
+      {required this.existing,
+      required this.initialName,
+      required this.rosterOnly});
 
   @override
   State<_AddPersonDialog> createState() => _AddPersonDialogState();
@@ -93,8 +98,11 @@ class _AddPersonDialogState extends State<_AddPersonDialog> {
       _error = null;
     });
     try {
-      final added = await _service.addEmployee(name, _canonicalDepartment);
+      final added = await _service.addEmployee(name, _canonicalDepartment,
+          source: widget.rosterOnly ? 'roster' : 'counter');
       if (mounted) setState(() => _added = added);
+    } on NameTaken catch (e) {
+      if (mounted) setState(() => _error = '$e');
     } catch (e) {
       if (mounted) setState(() => _error = 'Could not add the person: $e');
     } finally {
@@ -106,8 +114,9 @@ class _AddPersonDialogState extends State<_AddPersonDialog> {
     final e = _added!;
     setState(() => _printing = true);
     try {
-      final key = await _service.fetchBadgeKey(e.id);
-      final bytes = await buildBadgesPdf([e], {e.id: key ?? ''});
+      // Someone just added has no pass key yet; this creates it.
+      final keys = await _service.ensureBadgeKeys([e]);
+      final bytes = await buildBadgesPdf([e], keys);
       await printPdf(bytes, 'meal-pass.pdf');
     } finally {
       if (mounted) setState(() => _printing = false);
@@ -146,8 +155,10 @@ class _AddPersonDialogState extends State<_AddPersonDialog> {
         Text('Add a person', style: giHeading(size: 26)),
         const SizedBox(height: 6),
         Text(
-            'They will get a meal pass straight away. The office report '
-            'shows who added them and when.',
+            widget.rosterOnly
+                ? 'Add a staff member to the official office roster.'
+                : 'They will get a meal pass straight away. The office report '
+                    'shows who added them and when.',
             style: giBody(size: 16, color: GiColors.muted)),
         const SizedBox(height: 20),
         TextField(
@@ -234,17 +245,19 @@ class _AddPersonDialogState extends State<_AddPersonDialog> {
         Text(e.department,
             textAlign: TextAlign.center, style: giBody(color: GiColors.muted)),
         const SizedBox(height: 22),
-        FilledButton.icon(
-          onPressed: () => Navigator.pop(context, e),
-          icon: const Icon(Icons.restaurant),
-          label: const Text('Record meal now'),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: _printing ? null : _printPass,
-          icon: const Icon(Icons.print_outlined),
-          label: const Text('Print meal pass'),
-        ),
+        if (!widget.rosterOnly) ...[
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, e),
+            icon: const Icon(Icons.restaurant),
+            label: const Text('Record meal now'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _printing ? null : _printPass,
+            icon: const Icon(Icons.print_outlined),
+            label: const Text('Print meal pass'),
+          ),
+        ],
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Done'),

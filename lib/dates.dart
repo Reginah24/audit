@@ -21,6 +21,10 @@ DateTime nextServiceDay(DateTime from) {
   return day;
 }
 
+/// The Monday of [day]'s week — the id of that week's roster.
+DateTime mondayOf(DateTime day) =>
+    DateTime(day.year, day.month, day.day - (day.weekday - 1));
+
 /// Same as [nextServiceDay] but going backwards, for stepping through
 /// days in the staff and report screens.
 DateTime previousServiceDay(DateTime from) {

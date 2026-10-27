@@ -16,7 +16,7 @@ emojis, and nothing to install from an app store.
 - **Live app:** https://giraphe-govt-checkin.web.app
 - **Firebase project:** `giraphe-govt-checkin`
 - **Restaurant account:** `anthonyregina48@gmail.com`
-- **Office account:** `audit@gmail.com`
+- **Trial office account:** `anthreginah@gmail.com`
 
 (The two accounts are listed at the top of `firestore.rules`; that list,
 not the app, decides who can sign in to the restaurant and report pages.)
@@ -25,7 +25,16 @@ not the app, decides who can sign in to the restaurant and report pages.)
 
 ## 1. The three parts of the app
 
-The first screen shows today's date and three choices.
+The first screen is one role-based login. Customers open **My Meals**,
+restaurant staff open the counter, and audit officials open reports. A role
+does not merely hide buttons: staff/report screens remain protected by
+Firebase rules.
+
+Restaurant and audit accounts use email and password and must verify their
+email address before they can open the counter or reports. If an account has
+not been verified, the app sends a verification message and refuses access
+until the user follows the link and signs in again. Customer access continues
+to use the name and PIN flow.
 
 ### 1.1 Restaurant counter (tablet, restaurant account)
 
@@ -41,8 +50,9 @@ Four tabs:
   closes by itself after 15 seconds so the queue keeps moving.
 - **No pass? Search by name:** the cashier types any part of the name and
   taps it, then confirms. Same result as a scan.
-- **Not on the list? Add "…":** appears under the search (see *Add a
-  person* below).
+- The audit office owns the employee roster. If someone is missing or their
+  department is wrong, refer them to the audit office instead of creating a
+  restaurant-side record.
 
 **Today**
 - Cards for *Meals served*, *Confirmed* and *Confirmed, not yet arrived*.
@@ -53,34 +63,22 @@ Four tabs:
   mistake - did not eat*). The meal is not deleted silently: a permanent
   correction is saved and shown on the office report.
 
-**Plan** (the kitchen plan)
-- **Meals to prepare** for the next working day (Friday rolls over to
-  Monday), with how many declined and how many have not answered.
-- A Yes / No switch next to every name, for what the office tells the
-  restaurant (leave, travel, meetings). Tapping the selected answer again
-  clears it. Arrows move to other days.
-
 **Alerts**
 - Every refused second meal on the same day: who, when, and whether it was
   a scan or a tap.
 
 **Buttons at the top**
-- **Add a person** (person icon) — see below.
 - **Meal passes** (QR icon) — print everyone's passes, or tap **Lost** next
   to a name to cancel their pass and print a new one.
-- **Load employee roster** (upload icon) — loads `lib/employee_roster.dart`.
 - **Sign out.**
 
-**Add a person** — for someone missing from the office's list
-- Full name and department. Existing departments are one-tap buttons;
-  typing "finance" joins the existing "Finance" instead of creating a new
-  spelling.
-- A name already on the list is refused (capitals, spaces and accents are
-  ignored when comparing).
-- Afterwards: **Record meal now** (serves them straight away) and **Print
-  meal pass**.
-- The database stamps **who added them and when**. Every report lists them
-  under *People added at the restaurant counter*.
+### 1.4 Office roster (audit account)
+
+- The audit office opens **Office Roster** from the reports screen.
+- It loads the prepared staff list, adds missing employees and assigns their
+  departments.
+- It can search by name or department and edit departments later.
+- The restaurant sees the active roster but cannot create or edit employees.
 
 ### 1.2 My meals (employee's own phone)
 
@@ -90,6 +88,10 @@ Four tabs:
 2. **PIN** — the first time, choose 4 numbers; after that, enter them.
 3. The phone remembers the person; next time it opens straight to their
    page.
+
+Customers do not answer whether they will eat tomorrow. The weekly paper
+roster is the planning source; the restaurant records attendance when the
+meal pass is scanned.
 
 Three tabs at the bottom:
 - **Home** — greeting, *"Will you eat here [next working day]?"* with Yes /
@@ -111,8 +113,8 @@ recorded by the restaurant account at the counter.
   not eat, Said yes - did not eat, Ate without booking, Corrections.
 - **Whole month:** meals eaten, days booked and booked-but-not-eaten per
   person, with totals.
-- Both always include **People added at the restaurant counter** and
-  **Corrections (meals removed by the restaurant)** with who, when and why.
+- Both always include the official roster and **Corrections (meals removed
+  by the restaurant)** with who, when and why.
 - **Print / save PDF** and **Send / share** produce an A4 PDF headed
   *Office of the Auditor General*, with the same tables, those two
   sections, and signature lines for the restaurant and the office.
@@ -145,7 +147,7 @@ cannot be changed by the app.
 
 | Collection | One record per | Fields |
 |---|---|---|
-| `employees` | person on the list | name, department, addedBy, addedAt (server), source (`roster` = office list, `counter` = added at restaurant), pinSet |
+| `employees` | person on the list | name, department, addedBy, addedAt (server), source (`roster` = office list), pinSet |
 | `badges` | person | key (the secret part of their pass) |
 | `checkins` | meal eaten, id `<date>_<personId>` | employeeId, employeeName, department, date, timestamp (server), method (`scan` / `tap`), recordedBy |
 | `voided_checkins` | meal removed by the restaurant | the original meal, voidedAt (server), voidedBy, reason |
@@ -172,7 +174,8 @@ someone copies or changes the app.
 | Edit or delete a correction | no | no | no | no |
 | Answer "will I eat?" | no | own answer only | anyone's | no |
 | See meals | no | own only | all | all |
-| Add a person | no | no | yes (stamped who + when) | no |
+| Add a person | no | no | no | yes (stamped who + when) |
+| Edit departments | no | no | no | yes |
 | Rename / delete a person | no | no | no | no |
 | Read pass keys | no | own only | all | no |
 | Reports and corrections | no | no | yes | yes |
@@ -195,9 +198,10 @@ someone copies or changes the app.
 rules published with the two accounts above, app published at the live
 address.
 
-**Load the staff list:** put everyone in `lib/employee_roster.dart`, then
-publish (below) and press the upload icon on the tablet — or simply use
-*Add a person* on the tablet. Names already on the list are skipped.
+**Load the staff list:** sign in with the office account, open **Office
+Roster** from Reports, load the prepared list, add missing employees and
+correct their departments. The restaurant tablet reads the active list
+automatically.
 
 **Publish a change to the app:**
 ```
@@ -252,9 +256,8 @@ Authentication → Users, then publish the rules.
   `pinSet` field. They can then choose a new PIN.
 - **No internet:** the tablet shows *Could not record*. Use the paper list
   until the connection is back.
-- **Guests / visitors who are not staff:** not handled separately yet. Add
-  them with *Add a person* (they appear on the report as added at the
-  counter) or decide a rule with the office.
+- **Guests / visitors who are not staff:** not handled separately yet. Do not
+  add them to the official roster; decide a rule with the office first.
 - **Web address** contains "govt-checkin" because a Firebase project ID
   cannot be renamed. A second address (e.g. `giraphe-meal-app.web.app`)
   can be added in the same project if wanted.
@@ -277,9 +280,9 @@ All in October 2026.
    so a lost pass can be cancelled; roster loading made duplicate-safe.
 4. **Design:** formal look (cream, white cards, deep green and terracotta,
    Public Sans typeface), employee app with Home / Pass / Profile tabs.
-5. **Add a person** at the counter, stamped and shown on every report;
-   reports no longer count someone as "did not eat" for days before they
-   were added.
+5. **Office-owned roster:** roster loading, missing employees and department
+   corrections moved to the audit office; the restaurant can only use the
+   active list for meal operations.
 6. **Name search ignores capitals,** spacing, accents and word order;
    *Which one are you?* when names are shared.
 7. **Passes issued automatically** so the phone Pass works without

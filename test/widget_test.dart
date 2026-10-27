@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:giraphe_meal_app/dates.dart';
+import 'package:giraphe_meal_app/employee_roster.dart';
 import 'package:giraphe_meal_app/models/attendance.dart';
 import 'package:giraphe_meal_app/models/check_in.dart';
 import 'package:giraphe_meal_app/models/employee.dart';
@@ -67,6 +68,21 @@ void main() {
       expect(sameName('Clémentine', 'clementine'), isTrue);
       expect(sameName('Princess Uwase', 'Princess'), isFalse);
     });
+    test('same name check ignores word order', () {
+      expect(sameName('TUYUMVIRE HERVE', 'Herve Tuyumvire'), isTrue);
+      expect(sameName('NTIRENGANYA Evariste', 'NTIRENGANYA Evariste (PSAD)'),
+          isFalse);
+    });
+  });
+
+  test('the prepared roster has no name twice', () {
+    final seen = <String, String>{};
+    for (final person in employeeRoster) {
+      final name = person['name']!;
+      final earlier = seen[nameKey(name)];
+      expect(earlier, isNull, reason: '"$name" repeats "$earlier"');
+      seen[nameKey(name)] = name;
+    }
   });
 
   group('reports', () {
@@ -108,6 +124,60 @@ void main() {
       expect(report.unplanned, 1); // Jean ate without booking
       expect(report.rows.map((r) => r.employee.name),
           ['Aline Uwase', 'Jean Paul', 'Regina Anthony']);
+    });
+
+    test('ate after saying no is told apart from ate without answering', () {
+      const d = '2026-10-22';
+      final report = DayReport.build(
+        d,
+        roster,
+        [meal(regina, d), meal(jean, d), meal(aline, d)],
+        [answer(regina, d, true), answer(jean, d, false)],
+      );
+      expect(report.ateSaidNo, 1); // Jean said no, ate
+      expect(report.ateUnregistered, 1); // Aline never answered, ate
+      expect(report.unplanned, 2);
+      final notes = {for (final r in report.rows) r.employee.name: r.note};
+      expect(notes['Jean Paul'], 'Said no, but ate');
+      expect(notes['Aline Uwase'], 'Did not register, but ate');
+      expect(notes['Regina Anthony'], '');
+    });
+
+    test('someone removed from the list only shows if they ate or answered',
+        () {
+      const d = '2026-10-22';
+      final removed = Employee(
+          id: 'old', name: 'Old Duplicate', department: '', active: false);
+      final quiet = DayReport.build(d, [...roster, removed], [], []);
+      expect(quiet.total, 3);
+      final ate =
+          DayReport.build(d, [...roster, removed], [meal(removed, d)], []);
+      expect(ate.total, 4);
+    });
+
+    test('with a week roster, only people on it (or who ate) are listed', () {
+      const d = '2026-10-26';
+      final report = DayReport.build(d, roster, [meal(aline, d)],
+          [answer(regina, d, true)], const [], {regina.id});
+      // Jean is off the roster and did nothing that day, so isn't listed.
+      expect(report.rows.map((r) => r.employee.name),
+          ['Aline Uwase', 'Regina Anthony']);
+      expect(report.ateUnregistered, 1);
+    });
+
+    test('a past week entered later lists its roster and who ate', () {
+      final late = Employee(
+          id: 'l',
+          name: 'Late Entry',
+          department: 'PSAD',
+          addedAt: DateTime(2026, 10, 26));
+      const d = '2026-10-07';
+      final report = DayReport.build(
+          d, [late, regina], [meal(late, d)], [], const [], {regina.id});
+      // Added to the app after that day, but ate and keeps their department.
+      expect(
+          report.rows.map((r) => r.employee.department), ['PSAD', 'Finance']);
+      expect(report.ateUnregistered, 1);
     });
 
     test('meal by someone no longer on the roster is still reported', () {

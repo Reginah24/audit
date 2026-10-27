@@ -57,6 +57,11 @@ bool nameMatches(String name, String query) {
   return words.every((w) => nameWords.any((n) => n.startsWith(w)));
 }
 
+/// The words of a name folded and sorted, so "TUYUMVIRE Herve" and
+/// "Herve Tuyumvire" give the same key. Used to stop a name being added
+/// twice.
+String nameKey(String s) => (foldText(s).split(' ')..sort()).join(' ');
+
 /// True when two names are the same person's name, ignoring capitals,
-/// accents, spacing and punctuation.
-bool sameName(String a, String b) => foldText(a) == foldText(b);
+/// accents, spacing, punctuation and word order.
+bool sameName(String a, String b) => nameKey(a) == nameKey(b);

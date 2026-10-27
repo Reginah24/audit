@@ -97,8 +97,18 @@ Future<void> employeeSignOut() => employeeAuth.signOut();
 /// Restaurant and office accounts (the main Firebase app).
 Future<void> staffSignIn(String email, String password) async {
   try {
-    await FirebaseAuth.instance
+    final credential = await FirebaseAuth.instance
         .signInWithEmailAndPassword(email: email.trim(), password: password);
+    final user = credential.user;
+    if (user == null) {
+      throw SignInProblem('Could not complete sign-in.');
+    }
+    if (!user.emailVerified) {
+      await user.sendEmailVerification();
+      await FirebaseAuth.instance.signOut();
+      throw SignInProblem('A verification email was sent to ${user.email}. '
+          'Open it, verify your email, then sign in again.');
+    }
   } on FirebaseAuthException catch (e) {
     if (const [
       'wrong-password',
@@ -109,6 +119,20 @@ Future<void> staffSignIn(String email, String password) async {
     ].contains(e.code)) {
       throw SignInProblem('Wrong email or password.');
     }
+
     throw SignInProblem(_friendly(e));
+  }
+}
+
+enum StaffRole { restaurant, audit, unknown }
+
+StaffRole staffRoleForEmail(String email) {
+  switch (email.trim().toLowerCase()) {
+    case 'anthonyregina48@gmail.com':
+      return StaffRole.restaurant;
+    case 'anthreginah@gmail.com':
+      return StaffRole.audit;
+    default:
+      return StaffRole.unknown;
   }
 }

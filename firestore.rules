@@ -13,12 +13,14 @@ service cloud.firestore {
     // Restaurant accounts: record meals, plan, print badges, see reports.
     function isStaff() {
       return request.auth != null
+        && request.auth.token.email_verified == true
         && request.auth.token.email in ['anthonyregina48@gmail.com'];
     }
-    // Office accounts: read-only access to the reports.
+    // Office accounts: reports and the authoritative employee roster.
     function isOffice() {
       return request.auth != null
-        && request.auth.token.email in ['audit@gmail.com'];
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['anthreginah@gmail.com'];
     }
     // --------------------------------------------------------------------
 
@@ -50,9 +52,12 @@ service cloud.firestore {
       allow read: if true;
       // Every person added carries who added them and when (set by the
       // server), so the office can see that nobody was invented.
-      allow create: if isStaff()
+      // The office adds to its roster; the restaurant adds people who turn
+      // up but aren't on it, and those show on the report as such.
+      allow create: if ((isOffice() && request.resource.data.source == 'roster')
+            || (isStaff() && request.resource.data.source == 'counter'))
         && request.resource.data.keys().hasOnly(
-             ['name', 'department', 'addedBy', 'addedAt', 'source'])
+             ['name', 'department', 'addedBy', 'addedAt', 'source', 'active'])
         && request.resource.data.name is string
         && request.resource.data.name.size() >= 2
         && request.resource.data.name.size() <= 100
@@ -60,11 +65,15 @@ service cloud.firestore {
         && request.resource.data.department.size() <= 100
         && request.resource.data.addedBy == request.auth.token.email
         && request.resource.data.addedAt == request.time
-        && request.resource.data.source in ['roster', 'counter'];
-      // The restaurant may only clear old PIN fields; it can't rename
-      // people or rewrite who added them.
-      allow update: if (isStaff()
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pin']))
+        && request.resource.data.active == true;
+      // The office maintains names and departments, and removes people.
+      // Employees can only mark their own PIN as set.
+      allow update: if (isOffice()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                 ['active', 'department', 'name', 'formerNames', 'removedBy'])
+            && request.resource.data.name is string
+            && request.resource.data.name.size() >= 2
+            && request.resource.data.name.size() <= 100)
         || (isEmployee(id)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinSet'])
             && request.resource.data.pinSet == true);
@@ -108,16 +117,57 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // "Will I eat here that day?" — answered by the employee or set by
-    // the restaurant.
+    // "Will I eat here that day?" — answered by the employee, set by the
+    // restaurant, or entered by the office from its weekly list.
     match /attendance/{id} {
       allow read: if canReport() || isEmployee(employeeOf(id));
-      allow create, update: if (isStaff() || isEmployee(request.resource.data.employeeId))
+      allow create: if (canReport() || isEmployee(request.resource.data.employeeId))
         && id == request.resource.data.date + '_' + request.resource.data.employeeId
         && request.resource.data.coming is bool
         && request.resource.data.updatedAt == request.time
         && request.resource.data.updatedBy == request.auth.token.email
         && employeeExists(request.resource.data.employeeId);
+      // An employee's own answer is final for them; one the office or
+      // restaurant entered on their behalf they may replace once.
+      allow update: if (canReport()
+            || (isEmployee(request.resource.data.employeeId)
+                && resource.data.setBy != 'employee'
+                && request.resource.data.setBy == 'employee'))
+        && id == request.resource.data.date + '_' + request.resource.data.employeeId
+        && request.resource.data.coming is bool
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.updatedBy == request.auth.token.email
+        && employeeExists(request.resource.data.employeeId);
+      allow delete: if canReport();
+    }
+
+    // Who is on the office's duty roster for a week (id = that Monday,
+    // yyyy-MM-dd). Only these people are marked as coming in bulk.
+    match /week_rosters/{week} {
+      allow read: if canReport();
+      allow write: if isOffice()
+        && request.resource.data.employeeIds is list
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.updatedBy == request.auth.token.email;
+    }
+
+    // Visitors' meals, added by the restaurant. Counted in the day's total
+    // and listed by name on the report.
+    match /guest_meals/{id} {
+      allow read: if canReport();
+      allow create: if isStaff()
+        && request.resource.data.keys().hasOnly(
+             ['date', 'name', 'note', 'timestamp', 'recordedBy'])
+        && request.resource.data.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 100
+        && request.resource.data.note is string
+        && request.resource.data.note.size() <= 200
+        && request.resource.data.timestamp == request.time
+        && request.resource.data.recordedBy == request.auth.token.email;
+      allow update: if false;
+      // A guest added by mistake can be taken off the same day.
       allow delete: if isStaff();
     }
 

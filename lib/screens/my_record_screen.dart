@@ -6,12 +6,12 @@ import '../dates.dart';
 import '../theme.dart';
 import '../models/employee.dart';
 import '../models/check_in.dart';
+import '../models/attendance.dart';
 import '../services/firestore_service.dart';
-import '../widgets/coming_buttons.dart';
 import '../widgets/formal.dart';
+import 'role_login_screen.dart';
 
-/// Lets an employee answer "will you eat here tomorrow?" from their own
-/// phone and see their meals this month. Meals themselves can only be
+/// Lets an employee see their meal pass and meals this month. Meals can only be
 /// recorded at the restaurant. Two steps: find their name, then their PIN
 /// (created on the first visit). The PIN is checked by Firebase
 /// Authentication and never stored in the database.
@@ -37,11 +37,48 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
   String? _error;
   List<CheckIn>? _checkIns;
   String? _badgeKey;
+  Map<String, Attendance> _attendance = {};
+  Map<String, bool> _planChoices = {};
+  bool _savingPlan = false;
+  late final List<DateTime> _planningDays = _nextWorkingDays();
 
-  final _nextDay = nextServiceDay(DateTime.now());
-  bool? _comingNextDay;
-  bool _savingComing = false;
   int _tab = 0;
+
+  DateTime _historyMonth = DateTime(DateTime.now().year, DateTime.now().month);
+  List<DayHistory>? _history;
+  String? _historyError;
+
+  Future<void> _loadHistory() async {
+    final employee = _foundEmployee;
+    if (employee == null) return;
+    setState(() {
+      _history = null;
+      _historyError = null;
+    });
+    try {
+      final history = await _service.fetchMyMonth(employee.id, _historyMonth);
+      if (mounted) setState(() => _history = history);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _historyError = 'Could not load your record: $e');
+      }
+    }
+  }
+
+  void _stepHistoryMonth(int delta) {
+    _historyMonth = DateTime(_historyMonth.year, _historyMonth.month + delta);
+    _loadHistory();
+  }
+
+  List<DateTime> _nextWorkingDays() {
+    final days = <DateTime>[];
+    var day = nextServiceDay(DateTime.now());
+    while (days.length < 5) {
+      days.add(day);
+      day = nextServiceDay(day);
+    }
+    return days;
+  }
 
   @override
   void initState() {
@@ -148,39 +185,21 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
   }
 
   Future<void> _loadRecord(String employeeId) async {
-    final (checkIns, answer, badgeKey) = await (
+    final dates = _planningDays.map((day) => dateKey(day)).toList();
+    final (checkIns, badgeKey, attendance) = await (
       _service.fetchMyCheckInsThisMonth(employeeId),
-      _service.fetchAttendance(employeeId, dateKey(_nextDay)),
       _service.fetchBadgeKey(employeeId),
+      _service.fetchAttendanceForDates(employeeId, dates),
     ).wait;
     if (!mounted) return;
     setState(() {
       _checkIns = checkIns;
-      _comingNextDay = answer?.coming;
       _badgeKey = badgeKey;
+      _attendance = attendance;
+      _planChoices = {
+        for (final date in dates) date: attendance[date]?.coming == true
+      };
     });
-  }
-
-  Future<void> _answerComing(bool coming) async {
-    final employee = _foundEmployee;
-    if (employee == null) return;
-
-    setState(() => _savingComing = true);
-    try {
-      await _service.setAttendance(
-          employee, dateKey(_nextDay), coming, 'employee');
-      if (mounted) setState(() => _comingNextDay = coming);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content:
-                  Text('Could not save. Check the internet and try again.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _savingComing = false);
-    }
   }
 
   Future<void> _signOut() async {
@@ -189,13 +208,26 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
       _foundEmployee = null;
       _candidates = const [];
       _checkIns = null;
-      _comingNextDay = null;
       _badgeKey = null;
+      _attendance = {};
+      _planChoices = {};
       _tab = 0;
+      _history = null;
+      _historyMonth = DateTime(DateTime.now().year, DateTime.now().month);
       _error = null;
       _nameController.clear();
       _pinController.clear();
     });
+  }
+
+  Future<void> _changeRole() async {
+    await employeeSignOut();
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const RoleLoginScreen()),
+      (route) => false,
+    );
   }
 
   @override
@@ -208,10 +240,18 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
   @override
   Widget build(BuildContext context) {
     final signedIn = _checkIns != null && _foundEmployee != null;
-    const titles = ['DAILY PLANNER', 'MEAL PASS', 'MY PROFILE'];
+    const titles = ['MY MEALS', 'MEAL PASS', 'MY PROFILE'];
 
     return Scaffold(
-      appBar: AppBar(title: Text(signedIn ? titles[_tab] : 'MY MEALS')),
+      appBar: AppBar(
+        title: Text(signedIn ? titles[_tab] : 'MY MEALS'),
+        actions: [
+          TextButton(
+            onPressed: _changeRole,
+            child: const Text('Change role'),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Center(
@@ -236,7 +276,10 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
       bottomNavigationBar: signedIn
           ? NavigationBar(
               selectedIndex: _tab,
-              onDestinationSelected: (i) => setState(() => _tab = i),
+              onDestinationSelected: (i) {
+                setState(() => _tab = i);
+                if (i == 2) _loadHistory();
+              },
               destinations: const [
                 NavigationDestination(
                     icon: Icon(Icons.home_outlined),
@@ -395,36 +438,7 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
         Text(DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
             style: giBody(color: GiColors.muted)),
         const SizedBox(height: 22),
-        SectionCard(
-          header: 'Next service  |  '
-              '${DateFormat('EEEE d MMMM').format(_nextDay)}',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Will you eat here ${friendlyDayName(_nextDay)}?',
-                  style: giHeading(size: 24)),
-              const SizedBox(height: 6),
-              Text('Your answer tells the kitchen how many meals to prepare.',
-                  style: giBody(size: 16, color: GiColors.muted)),
-              const SizedBox(height: 18),
-              ComingButtons(
-                selected: _comingNextDay,
-                busy: _savingComing,
-                onChanged: _answerComing,
-              ),
-              if (_comingNextDay != null) ...[
-                const SizedBox(height: 14),
-                StatusLine(
-                  icon: Icons.check_circle,
-                  text: _comingNextDay!
-                      ? 'Confirmed: you will eat here'
-                      : 'Recorded: you will not eat here',
-                  color: _comingNextDay! ? GiColors.primary : GiColors.accent,
-                ),
-              ],
-            ],
-          ),
-        ),
+        _buildWeeklyPlan(),
         const SizedBox(height: 16),
         SectionCard(
           child: Column(
@@ -457,6 +471,73 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
         ),
       ],
     );
+  }
+
+  /// A day the customer answered themselves can't be changed. One the
+  /// office or restaurant filled in for them, they can still answer.
+  bool _ownAnswer(String date) => _attendance[date]?.setBy == 'employee';
+
+  Widget _buildWeeklyPlan() {
+    final locked = _planningDays.every((d) => _ownAnswer(dateKey(d)));
+    return SectionCard(
+      header: 'Meal plan  |  next five working days',
+      headerColor: GiColors.primary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            locked
+                ? 'Your plan has been submitted and is locked.'
+                : 'Tick the days you will eat here, then submit. Days you '
+                    'have already submitted cannot be changed.',
+            style: giBody(size: 16, color: GiColors.muted),
+          ),
+          const SizedBox(height: 10),
+          for (final day in _planningDays)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(DateFormat('EEEE d MMMM').format(day)),
+              subtitle: switch (_attendance[dateKey(day)]?.setBy) {
+                null => null,
+                'employee' => const Text('Submitted'),
+                'office' =>
+                  const Text('Entered by the office. You can change it.'),
+                _ =>
+                  const Text('Entered by the restaurant. You can change it.'),
+              },
+              value: _planChoices[dateKey(day)] == true,
+              onChanged: _ownAnswer(dateKey(day))
+                  ? null
+                  : (value) => setState(() {
+                        _planChoices[dateKey(day)] = value == true;
+                      }),
+            ),
+          if (!locked)
+            FilledButton(
+              onPressed: _savingPlan ? null : _savePlan,
+              child: const Text('Submit meal plan'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _savePlan() async {
+    final employee = _foundEmployee;
+    if (employee == null) return;
+    setState(() => _savingPlan = true);
+    try {
+      await _service.saveAttendancePlan(employee, _planChoices);
+      await _loadRecord(employee.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not submit the plan: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingPlan = false);
+    }
   }
 
   Widget _buildPass() {
@@ -544,7 +625,6 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
 
   Widget _buildProfile() {
     final employee = _foundEmployee!;
-    final checkIns = _checkIns!;
     final initials = employee.name
         .split(' ')
         .where((p) => p.isNotEmpty)
@@ -581,32 +661,29 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
           ],
         ),
         const SizedBox(height: 22),
-        SectionCard(
-          header: 'Meal history  |  '
-              '${DateFormat('MMMM yyyy').format(DateTime.now())}',
-          headerColor: GiColors.primary,
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: checkIns.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text('No meals recorded yet this month.',
-                      style: giBody(color: GiColors.muted)),
-                )
-              : Column(
-                  children: [
-                    for (final c in checkIns.reversed)
-                      ListTile(
-                        leading: const Icon(Icons.check_circle_outline,
-                            color: GiColors.primary),
-                        title: Text(DateFormat('EEEE d MMMM')
-                            .format(parseDateKey(c.date))),
-                        trailing: Text(
-                            DateFormat('h:mm a').format(c.timestamp.toDate()),
-                            style: giBody(size: 15, color: GiColors.muted)),
-                      ),
-                  ],
-                ),
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.chevron_left, color: GiColors.primary),
+              tooltip: 'Previous month',
+              onPressed: () => _stepHistoryMonth(-1),
+            ),
+            Expanded(
+              child: Text(DateFormat('MMMM yyyy').format(_historyMonth),
+                  textAlign: TextAlign.center, style: giHeading(size: 20)),
+            ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right, color: GiColors.primary),
+              tooltip: 'Next month',
+              onPressed: _historyMonth.year == DateTime.now().year &&
+                      _historyMonth.month == DateTime.now().month
+                  ? null
+                  : () => _stepHistoryMonth(1),
+            ),
+          ],
         ),
+        const SizedBox(height: 8),
+        _buildHistory(),
         const SizedBox(height: 20),
         OutlinedButton.icon(
           onPressed: _signOut,
@@ -614,6 +691,60 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
           label: const Text('Sign out'),
         ),
       ],
+    );
+  }
+
+  /// Every working day of the month: whether they ate, and what they had
+  /// said — the customer's own record if a meal is ever questioned.
+  Widget _buildHistory() {
+    if (_historyError != null) {
+      return StatusLine(
+          icon: Icons.error_outline, text: _historyError!, color: GiColors.red);
+    }
+    final history = _history;
+    if (history == null) {
+      return const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: CircularProgressIndicator()));
+    }
+    final ate = history.where((d) => d.meal != null).length;
+
+    return SectionCard(
+      header: 'Ate on $ate of ${history.length} days',
+      headerColor: GiColors.primary,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: history.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text('No working days yet this month.',
+                  style: giBody(color: GiColors.muted)),
+            )
+          : Column(
+              children: [
+                for (final d in history)
+                  ListTile(
+                    leading: d.meal != null
+                        ? const Icon(Icons.check_circle,
+                            color: GiColors.primary)
+                        : const Icon(Icons.cancel_outlined,
+                            color: GiColors.muted),
+                    title: Text(
+                        DateFormat('EEEE d MMMM').format(parseDateKey(d.date))),
+                    subtitle: Text([
+                      d.meal != null
+                          ? (d.meal!.fromPaper
+                              ? 'Ate (signed paper list)'
+                              : 'Ate at ${DateFormat('h:mm a').format(d.meal!.timestamp.toDate())}')
+                          : 'Did not eat',
+                      switch (d.answer?.coming) {
+                        true => 'said coming',
+                        false => 'said not coming',
+                        null => 'no answer',
+                      },
+                    ].join('  ·  ')),
+                  ),
+              ],
+            ),
     );
   }
 }

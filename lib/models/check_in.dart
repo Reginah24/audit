@@ -6,7 +6,10 @@ class CheckIn {
   final String employeeName;
   final String date; // yyyy-MM-dd, so "today" is a simple string match
   final Timestamp timestamp;
-  final String method; // 'scan', 'tap' (at the till) or 'self' (own phone)
+
+  /// 'scan', 'tap' (at the till), 'self' (own phone) or 'paper' (copied
+  /// later from the signed paper list — the time of the meal isn't known).
+  final String method;
 
   CheckIn({
     required this.id,
@@ -38,9 +41,12 @@ class CheckIn {
     };
   }
 
+  bool get fromPaper => method == 'paper';
+
   String get methodLabel => switch (method) {
         'scan' => 'Scanned pass',
         'self' => 'Own phone',
+        'paper' => 'Signed paper list',
         _ => 'Tapped at till',
       };
 }

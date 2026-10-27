@@ -11,11 +11,15 @@ import '../services/pdf_service.dart';
 import '../services/report.dart';
 import '../models/check_in.dart';
 import '../models/employee.dart';
+import '../models/guest_meal.dart';
 import '../widgets/sign_in_gate.dart';
+import '../auth.dart';
+import 'roster_screen.dart';
+import 'weekly_plan_screen.dart';
 
 enum _Mode { day, month }
 
-enum _DayFilter { all, ate, didNotEat, noShow, unplanned }
+enum _DayFilter { all, ate, didNotEat, noShow, ateSaidNo, unregistered }
 
 /// Read-only report for the government office: for any day, who said they
 /// would eat, who ate and who didn't; for any month, meals per employee.
@@ -57,6 +61,7 @@ class _ReportState extends State<_Report> {
 
   DayReport? _day;
   MonthReport? _month;
+  List<GuestMeal> _guests = const [];
   bool _loading = false;
   String? _loadError;
 
@@ -75,8 +80,14 @@ class _ReportState extends State<_Report> {
     try {
       if (_mode == _Mode.day) {
         final data = await _service.fetchReport(_selectedDay, _selectedDay);
-        _day = DayReport.build(dateKey(_selectedDay), data.employees,
-            data.checkIns, data.attendance, data.voided);
+        _day = DayReport.build(
+            dateKey(_selectedDay),
+            data.employees,
+            data.checkIns,
+            data.attendance,
+            data.voided,
+            data.rosters[dateKey(mondayOf(_selectedDay))]);
+        _guests = data.guests;
       } else {
         final start = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
         final end = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0);
@@ -88,7 +99,9 @@ class _ReportState extends State<_Report> {
             FirestoreService.todayKey(),
             data.voided,
             dateKey(start),
-            dateKey(end));
+            dateKey(end),
+            data.rosters);
+        _guests = data.guests;
       }
     } catch (e) {
       _loadError = 'Could not load the report: $e';
@@ -127,12 +140,15 @@ class _ReportState extends State<_Report> {
     if (_mode == _Mode.day) {
       final day = _day;
       if (day == null) return null;
-      return (await buildDayReportPdf(day), 'meal-report-${day.date}.pdf');
+      return (
+        await buildDayReportPdf(day, _guests),
+        'meal-report-${day.date}.pdf'
+      );
     }
     final month = _month;
     if (month == null) return null;
     return (
-      await buildMonthReportPdf(_selectedMonth, month),
+      await buildMonthReportPdf(_selectedMonth, month, _guests.length),
       'meal-report-${DateFormat('yyyy-MM').format(_selectedMonth)}.pdf',
     );
   }
@@ -154,6 +170,29 @@ class _ReportState extends State<_Report> {
       appBar: AppBar(
         title: const Text('REPORTS'),
         actions: [
+          if (staffRoleForEmail(
+                  FirebaseAuth.instance.currentUser?.email ?? '') ==
+              StaffRole.audit) ...[
+            IconButton(
+              icon: const Icon(Icons.event_note),
+              tooltip: 'Who is coming this week',
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WeeklyPlanScreen()),
+                );
+                _loadReport();
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.groups_outlined),
+              tooltip: 'Manage office roster',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RosterScreen()),
+              ),
+            ),
+          ],
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
@@ -264,9 +303,12 @@ class _ReportState extends State<_Report> {
               _DayFilter.ate => r.ate,
               _DayFilter.didNotEat => !r.ate,
               _DayFilter.noShow => r.noShow,
-              _DayFilter.unplanned => r.unplanned,
+              _DayFilter.ateSaidNo => r.ateSaidNo,
+              _DayFilter.unregistered => r.ateUnregistered,
             })
         .toList();
+    final expected = report.rows.where((row) => row.saidYes).toList();
+    final notComing = report.rows.where((row) => row.saidNo).toList();
 
     Widget chip(_DayFilter f, String text, int count) => Padding(
           padding: const EdgeInsets.only(right: 8, bottom: 8),
@@ -279,55 +321,104 @@ class _ReportState extends State<_Report> {
 
     return ListView(
       children: [
-        Wrap(children: [
-          _StatTile('Said they would eat', report.saidYes),
-          _StatTile('Ate', report.ate, color: GiColors.green),
-          _StatTile('Did not eat', report.didNotEat),
-          _StatTile('Said yes, did not eat', report.noShows,
-              color: GiColors.red),
-          _StatTile('Ate without booking', report.unplanned),
-          _StatTile('Corrections', report.corrections.length),
-        ]),
-        const SizedBox(height: 12),
-        Wrap(children: [
-          chip(_DayFilter.all, 'Everyone', report.total),
-          chip(_DayFilter.ate, 'Ate', report.ate),
-          chip(_DayFilter.didNotEat, 'Did not eat', report.didNotEat),
-          chip(_DayFilter.noShow, 'Said yes, did not eat', report.noShows),
-          chip(_DayFilter.unplanned, 'Ate without booking', report.unplanned),
-        ]),
-        if (rows.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Center(
-                child: Text('Nobody in this list',
-                    style: GoogleFonts.publicSans(color: GiColors.muted))),
+        _DaySummary(report, _guests),
+        Card(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          child: ExpansionTile(
+            title: Text('Expected to eat: ${expected.length}',
+                style: GoogleFonts.publicSans(fontWeight: FontWeight.w700)),
+            children: [
+              for (final row in expected)
+                ListTile(
+                  dense: true,
+                  title: Text(row.employee.name),
+                  subtitle: Text(row.employee.department),
+                ),
+            ],
           ),
-        for (final r in rows)
-          Card(
-            margin: const EdgeInsets.symmetric(vertical: 3),
-            child: ListTile(
-              leading: Icon(
-                r.ate ? Icons.check_circle : Icons.radio_button_unchecked,
-                color: r.ate ? GiColors.green : GiColors.muted,
-              ),
-              title: Text(r.employee.name,
-                  style: GoogleFonts.publicSans(fontWeight: FontWeight.w600)),
-              subtitle: Text([
-                if (r.employee.department.isNotEmpty) r.employee.department,
-                'Said coming: ${r.comingLabel}',
-                if (r.meal != null)
-                  'Ate ${DateFormat('h:mm a').format(r.meal!.timestamp.toDate())} (${r.meal!.methodLabel})',
-              ].join(' · ')),
-              trailing: r.note.isEmpty
-                  ? null
-                  : Text(r.note,
-                      style: GoogleFonts.publicSans(
-                          color: r.noShow ? GiColors.red : GiColors.primaryDark,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600)),
-            ),
+        ),
+        Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ExpansionTile(
+            title: Text('Said they will not eat: ${notComing.length}',
+                style: GoogleFonts.publicSans(fontWeight: FontWeight.w700)),
+            children: [
+              for (final row in notComing)
+                ListTile(
+                  dense: true,
+                  title: Text(row.employee.name),
+                  subtitle: Text(row.employee.department),
+                  trailing: row.ate
+                      ? Text('Came anyway',
+                          style: GoogleFonts.publicSans(
+                              color: GiColors.primaryDark,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600))
+                      : null,
+                ),
+            ],
           ),
+        ),
+        Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ExpansionTile(
+            title: Text('Look up a person (${report.total})',
+                style: GoogleFonts.publicSans(fontWeight: FontWeight.w700)),
+            childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            children: [
+              Wrap(children: [
+                chip(_DayFilter.all, 'Everyone', report.total),
+                chip(_DayFilter.ate, 'Ate', report.ate),
+                chip(_DayFilter.didNotEat, 'Did not eat', report.didNotEat),
+                chip(
+                    _DayFilter.noShow, 'Said yes, did not eat', report.noShows),
+                chip(
+                    _DayFilter.ateSaidNo, 'Said no, but ate', report.ateSaidNo),
+                chip(_DayFilter.unregistered, 'Did not register, but ate',
+                    report.ateUnregistered),
+              ]),
+              if (rows.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                      child: Text('Nobody in this list',
+                          style:
+                              GoogleFonts.publicSans(color: GiColors.muted))),
+                ),
+              for (final r in rows)
+                Card(
+                  margin: const EdgeInsets.symmetric(vertical: 3),
+                  child: ListTile(
+                    leading: Icon(
+                      r.ate ? Icons.check_circle : Icons.radio_button_unchecked,
+                      color: r.ate ? GiColors.green : GiColors.muted,
+                    ),
+                    title: Text(r.employee.name,
+                        style: GoogleFonts.publicSans(
+                            fontWeight: FontWeight.w600)),
+                    subtitle: Text([
+                      if (r.employee.department.isNotEmpty)
+                        r.employee.department,
+                      'Said coming: ${r.comingLabel}',
+                      if (r.meal != null)
+                        r.meal!.fromPaper
+                            ? 'Ate (${r.meal!.methodLabel})'
+                            : 'Ate ${DateFormat('h:mm a').format(r.meal!.timestamp.toDate())} (${r.meal!.methodLabel})',
+                    ].join(' · ')),
+                    trailing: r.note.isEmpty
+                        ? null
+                        : Text(r.note,
+                            style: GoogleFonts.publicSans(
+                                color: r.noShow
+                                    ? GiColors.red
+                                    : GiColors.primaryDark,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                  ),
+                ),
+            ],
+          ),
+        ),
         _AddedList(report.added),
         _CorrectionsList(report.corrections),
       ],
@@ -367,6 +458,7 @@ class _ReportState extends State<_Report> {
         Wrap(children: [
           _StatTile('Days served', report.days.length),
           _StatTile('Meals eaten', report.totalMeals, color: GiColors.green),
+          _StatTile('Guest meals', _guests.length),
           _StatTile('Meals booked', report.totalBooked),
           _StatTile('Booked, not eaten', report.totalNoShows,
               color: GiColors.red),
@@ -386,22 +478,30 @@ class _ReportState extends State<_Report> {
               1: FlexColumnWidth(1),
               2: FlexColumnWidth(1),
               3: FlexColumnWidth(1.3),
+              4: FlexColumnWidth(1.3),
             },
             children: [
-              row(['Employee', 'Ate', 'Booked', 'Booked, not eaten'],
-                  header: true),
+              row([
+                'Employee',
+                'Ate',
+                'Booked',
+                'Booked, not eaten',
+                'Ate, not booked'
+              ], header: true),
               for (final r in report.rows)
                 row([
                   r.employee.name,
                   '${r.meals}',
                   '${r.booked}',
                   '${r.noShows}',
+                  '${r.unplanned}',
                 ]),
               row([
                 'Total',
                 '${report.totalMeals}',
                 '${report.totalBooked}',
                 '${report.totalNoShows}',
+                '${report.totalUnplanned}',
               ], header: true),
             ],
           ),
@@ -409,6 +509,68 @@ class _ReportState extends State<_Report> {
         _AddedList(report.added),
         _CorrectionsList(report.corrections),
       ],
+    );
+  }
+}
+
+/// The day as the office writes it: the total who ate, then each
+/// exception with its names and count. Nobody else is listed here.
+class _DaySummary extends StatelessWidget {
+  final DayReport report;
+  final List<GuestMeal> guests;
+
+  const _DaySummary(this.report, this.guests);
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = [
+      (
+        'Not on the list, but came',
+        report.rows.where((r) => r.ateUnregistered)
+      ),
+      (
+        'Had blue (said they would not come), but came',
+        report.rows.where((r) => r.ateSaidNo)
+      ),
+      ('Registered but did not come', report.rows.where((r) => r.noShow)),
+    ];
+    return Card(
+      margin: const EdgeInsets.only(top: 8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Total who ate: ${report.ate + guests.length}',
+                style: giHeading(size: 22)),
+            Text('Staff ${report.ate} + guests ${guests.length}',
+                style: giBody(size: 14, color: GiColors.muted)),
+            for (final (title, rows) in groups) ...[
+              const SizedBox(height: 12),
+              Text('$title: ${rows.length}',
+                  style: giBody(size: 15, weight: FontWeight.w700)),
+              if (rows.isEmpty)
+                Text('None', style: giBody(size: 14, color: GiColors.muted))
+              else
+                for (final (i, r) in rows.indexed)
+                  Text(
+                      '${i + 1}. ${r.employee.name}'
+                      '${r.employee.department.isEmpty ? '' : ' (${r.employee.department})'}',
+                      style: giBody(size: 14)),
+            ],
+            const SizedBox(height: 12),
+            Text('Guests: ${guests.length}',
+                style: giBody(size: 15, weight: FontWeight.w700)),
+            if (guests.isEmpty)
+              Text('None', style: giBody(size: 14, color: GiColors.muted))
+            else
+              for (final (i, g) in guests.indexed)
+                Text(
+                    '${i + 1}. ${g.name}${g.note.isEmpty ? '' : ' (${g.note})'}',
+                    style: giBody(size: 14)),
+          ],
+        ),
+      ),
     );
   }
 }
