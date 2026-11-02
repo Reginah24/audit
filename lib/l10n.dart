@@ -235,6 +235,7 @@ const _rw = <String, String>{
   'Today': 'Uyu munsi',
   'Meal plan': 'Gahunda y’amafunguro',
   'Alerts': 'Imenyesha',
+  'Enter a previous paper list': 'Andika urutonde rw’impapuro rwabanje',
   'Total who ate': 'Abafashe amafunguro uyu munsi',
   'Not on the list, but came': 'Abatari kuri list baje',
   'Not to come, but came': 'Abatarikuza baje',
