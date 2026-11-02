@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:giraphe_meal_app/dates.dart';
 import 'package:giraphe_meal_app/employee_roster.dart';
+import 'package:giraphe_meal_app/l10n.dart';
 import 'package:giraphe_meal_app/models/attendance.dart';
 import 'package:giraphe_meal_app/models/check_in.dart';
 import 'package:giraphe_meal_app/models/employee.dart';
@@ -73,6 +74,18 @@ void main() {
       expect(sameName('NTIRENGANYA Evariste', 'NTIRENGANYA Evariste (PSAD)'),
           isFalse);
     });
+  });
+
+  test('Kinyarwanda switch translates text and dates', () {
+    language.value = Lang.rw;
+    expect(tr('Sign out'), 'Sohoka');
+    expect(tr('Meal taken at {time}', {'time': '12:30'}),
+        'Wafashe ifunguro saa 12:30');
+    expect(dayAndDate(DateTime(2026, 10, 28)), 'Kuwa gatatu 28 Ukwakira');
+    expect(tr('Text with no translation yet'), 'Text with no translation yet');
+    language.value = Lang.en;
+    expect(tr('Sign out'), 'Sign out');
+    expect(dayAndDate(DateTime(2026, 10, 28)), 'Wednesday 28 October');
   });
 
   test('the prepared roster has no name twice', () {

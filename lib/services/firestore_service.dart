@@ -402,15 +402,15 @@ class FirestoreService {
   /// Makes sure everyone in [employees] has a badge key, creating the
   /// missing ones. Existing keys are kept, so printing again doesn't cancel
   /// badges already handed out.
-  /// Each pass's rule checks that the employee exists, and Firestore allows
-  /// only 20 such checks per batch, so new keys are saved 20 at a time.
+  /// Each pass's rule checks that the employee exists, and Firestore limits
+  /// such checks per batch, so new keys are saved 10 at a time.
   Future<Map<String, String>> ensureBadgeKeys(List<Employee> employees) async {
     final keys = await fetchBadgeKeys();
     final missing = employees.where((e) => (keys[e.id] ?? '').isEmpty).toList();
-    for (var i = 0; i < missing.length; i += 20) {
+    for (var i = 0; i < missing.length; i += 10) {
       final batch = _db.batch();
       final created = <String, String>{};
-      for (final e in missing.skip(i).take(20)) {
+      for (final e in missing.skip(i).take(10)) {
         final key = _newBadgeKey();
         created[e.id] = key;
         batch.set(_db.collection('badges').doc(e.id), {'key': key});

@@ -14,6 +14,7 @@ import '../models/employee.dart';
 import '../models/guest_meal.dart';
 import '../widgets/sign_in_gate.dart';
 import '../auth.dart';
+import '../l10n.dart';
 import 'roster_screen.dart';
 import 'weekly_plan_screen.dart';
 
@@ -165,47 +166,51 @@ class _ReportState extends State<_Report> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: GiColors.paper,
-      appBar: AppBar(
-        title: const Text('REPORTS'),
-        actions: [
-          if (staffRoleForEmail(
-                  FirebaseAuth.instance.currentUser?.email ?? '') ==
-              StaffRole.audit) ...[
-            IconButton(
-              icon: const Icon(Icons.event_note),
-              tooltip: 'Who is coming this week',
-              onPressed: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WeeklyPlanScreen()),
-                );
-                _loadReport();
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.groups_outlined),
-              tooltip: 'Manage office roster',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const RosterScreen()),
+    return ValueListenableBuilder<Lang>(
+      valueListenable: language,
+      builder: (context, _, __) => Scaffold(
+        backgroundColor: GiColors.paper,
+        appBar: AppBar(
+          title: Text(tr('REPORTS')),
+          actions: [
+            const LanguageSwitch(),
+            if (staffRoleForEmail(
+                    FirebaseAuth.instance.currentUser?.email ?? '') ==
+                StaffRole.audit) ...[
+              IconButton(
+                icon: const Icon(Icons.event_note),
+                tooltip: tr('Who is coming this week'),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const WeeklyPlanScreen()),
+                  );
+                  _loadReport();
+                },
               ),
+              IconButton(
+                icon: const Icon(Icons.groups_outlined),
+                tooltip: tr('Manage office roster'),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RosterScreen()),
+                ),
+              ),
+            ],
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: tr('Sign out'),
+              onPressed: () => FirebaseAuth.instance.signOut(),
             ),
           ],
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
-            onPressed: () => FirebaseAuth.instance.signOut(),
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: _buildReport(),
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: _buildReport(),
+            ),
           ),
         ),
       ),
@@ -221,9 +226,9 @@ class _ReportState extends State<_Report> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SegmentedButton<_Mode>(
-          segments: const [
-            ButtonSegment(value: _Mode.day, label: Text('One day')),
-            ButtonSegment(value: _Mode.month, label: Text('Whole month')),
+          segments: [
+            ButtonSegment(value: _Mode.day, label: Text(tr('One day'))),
+            ButtonSegment(value: _Mode.month, label: Text(tr('Whole month'))),
           ],
           selected: {_mode},
           onSelectionChanged: (s) {
@@ -259,7 +264,7 @@ class _ReportState extends State<_Report> {
               child: FilledButton.icon(
                 onPressed: _loading ? null : _print,
                 icon: const Icon(Icons.print),
-                label: const Text('Print / save PDF'),
+                label: Text(tr('Print / save PDF')),
               ),
             ),
             const SizedBox(width: 10),
@@ -272,7 +277,7 @@ class _ReportState extends State<_Report> {
                 ),
                 onPressed: _loading ? null : _share,
                 icon: const Icon(Icons.share),
-                label: const Text('Send / share'),
+                label: Text(tr('Send / share')),
               ),
             ),
           ],
@@ -457,7 +462,9 @@ class _ReportState extends State<_Report> {
       children: [
         Wrap(children: [
           _StatTile('Days served', report.days.length),
-          _StatTile('Meals eaten', report.totalMeals, color: GiColors.green),
+          _StatTile(tr('Total who ate'), report.totalMeals + _guests.length,
+              color: GiColors.green),
+          _StatTile('Staff meals', report.totalMeals),
           _StatTile('Guest meals', _guests.length),
           _StatTile('Meals booked', report.totalBooked),
           _StatTile('Booked, not eaten', report.totalNoShows,
@@ -525,14 +532,10 @@ class _DaySummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final groups = [
       (
-        'Not on the list, but came',
+        tr('Not on the list, but came'),
         report.rows.where((r) => r.ateUnregistered)
       ),
-      (
-        'Had blue (said they would not come), but came',
-        report.rows.where((r) => r.ateSaidNo)
-      ),
-      ('Registered but did not come', report.rows.where((r) => r.noShow)),
+      (tr('Not to come, but came'), report.rows.where((r) => r.ateSaidNo)),
     ];
     return Card(
       margin: const EdgeInsets.only(top: 8),
@@ -541,9 +544,10 @@ class _DaySummary extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Total who ate: ${report.ate + guests.length}',
+            Text('${tr('Total who ate')}: ${report.ate + guests.length}',
                 style: giHeading(size: 22)),
-            Text('Staff ${report.ate} + guests ${guests.length}',
+            Text(
+                '${tr('Staff')} ${report.ate} + ${tr('Guests').toLowerCase()} ${guests.length}',
                 style: giBody(size: 14, color: GiColors.muted)),
             for (final (title, rows) in groups) ...[
               const SizedBox(height: 12),
@@ -559,7 +563,7 @@ class _DaySummary extends StatelessWidget {
                       style: giBody(size: 14)),
             ],
             const SizedBox(height: 12),
-            Text('Guests: ${guests.length}',
+            Text('${tr('Guests')}: ${guests.length}',
                 style: giBody(size: 15, weight: FontWeight.w700)),
             if (guests.isEmpty)
               Text('None', style: giBody(size: 14, color: GiColors.muted))

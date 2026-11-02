@@ -10,6 +10,7 @@ import '../models/check_in.dart';
 import '../models/employee.dart';
 import '../models/guest_meal.dart';
 import 'report.dart';
+import '../l10n.dart';
 
 // The built-in PDF font only covers basic Latin characters, so the text in
 // here sticks to plain hyphens and quotes rather than dashes and bullets.
@@ -18,6 +19,20 @@ const _ink = PdfColor.fromInt(0xFF1E2A26);
 const _muted = PdfColor.fromInt(0xFF5E655F);
 const _accent = PdfColor.fromInt(0xFF2E5A4B);
 const _band = PdfColor.fromInt(0xFFF5F1EA);
+
+String _reportText(String english) => language.value == Lang.rw
+    ? const {
+          'Daily meal report': 'Raporo y’amafunguro y’umunsi',
+          'Monthly meal report': 'Raporo y’amafunguro y’ukwezi',
+          'Total who ate': 'Abafashe amafunguro uyu munsi',
+          'Not on the list, but came': 'Abatari kuri list baje',
+          'Not to come, but came': 'Abatarikuza baje',
+          'Guests': 'Abashitsi',
+          'Staff': 'Abakozi',
+          'None.': "Nta n'umwe.",
+        }[english] ??
+        english
+    : english;
 
 /// Opens the system print / save-as-PDF dialog.
 Future<void> printPdf(Uint8List bytes, String name) =>
@@ -104,7 +119,7 @@ Future<Uint8List> buildDayReportPdf(
   doc.addPage(pw.MultiPage(
     pageFormat: PdfPageFormat.a4,
     margin: const pw.EdgeInsets.all(32),
-    header: (_) => _header('Daily meal report',
+    header: (_) => _header(_reportText('Daily meal report'),
         '${DateFormat('EEEE d MMMM yyyy').format(day)} - $restaurantName'),
     footer: _footer,
     build: (_) => [
@@ -126,13 +141,14 @@ Future<Uint8List> buildMonthReportPdf(
   doc.addPage(pw.MultiPage(
     pageFormat: PdfPageFormat.a4,
     margin: const pw.EdgeInsets.all(32),
-    header: (_) => _header('Monthly meal report',
+    header: (_) => _header(_reportText('Monthly meal report'),
         '${DateFormat('MMMM yyyy').format(month)} - $restaurantName'),
     footer: _footer,
     build: (_) => [
       pw.Row(children: [
         _stat('Days served', report.days.length),
-        _stat('Meals eaten', report.totalMeals),
+        _stat(_reportText('Total who ate'), report.totalMeals + guestMeals),
+        _stat('Staff meals', report.totalMeals),
         _stat('Guest meals', guestMeals),
         _stat('Meals booked', report.totalBooked),
         _stat('Booked, not eaten', report.totalNoShows),
@@ -214,26 +230,31 @@ Future<Uint8List> buildMonthReportPdf(
 /// then each exception with its names and count. Nobody else is listed.
 List<pw.Widget> _daySummarySection(DayReport report, List<GuestMeal> guests) {
   final groups = [
-    ('Not on the list, but came', report.rows.where((r) => r.ateUnregistered)),
     (
-      'Had blue (said they would not come), but came',
+      _reportText('Not on the list, but came'),
+      report.rows.where((r) => r.ateUnregistered)
+    ),
+    (
+      _reportText('Not to come, but came'),
       report.rows.where((r) => r.ateSaidNo)
     ),
-    ('Registered but did not come', report.rows.where((r) => r.noShow)),
   ];
   const bold = pw.TextStyle(fontWeight: pw.FontWeight.bold, color: _ink);
   return [
-    pw.Text('Total who ate: ${report.ate + guests.length}',
+    pw.Text('${_reportText('Total who ate')}: ${report.ate + guests.length}',
         style: const pw.TextStyle(
             fontSize: 16, fontWeight: pw.FontWeight.bold, color: _ink)),
-    pw.Text('Staff ${report.ate} + guests ${guests.length}',
+    pw.Text(
+        '${_reportText('Staff')} ${report.ate} + '
+        '${_reportText('Guests').toLowerCase()} ${guests.length}',
         style: const pw.TextStyle(fontSize: 10, color: _muted)),
     pw.SizedBox(height: 16),
     for (final (title, rows) in groups) ...[
       pw.Text('$title: ${rows.length}', style: bold),
       pw.SizedBox(height: 3),
       if (rows.isEmpty)
-        pw.Text('None.', style: const pw.TextStyle(fontSize: 9, color: _muted))
+        pw.Text(_reportText('None.'),
+            style: const pw.TextStyle(fontSize: 9, color: _muted))
       else
         for (final (i, r) in rows.indexed)
           pw.Text(
@@ -242,10 +263,11 @@ List<pw.Widget> _daySummarySection(DayReport report, List<GuestMeal> guests) {
               style: const pw.TextStyle(fontSize: 10, color: _ink)),
       pw.SizedBox(height: 12),
     ],
-    pw.Text('Guests: ${guests.length}', style: bold),
+    pw.Text('${_reportText('Guests')}: ${guests.length}', style: bold),
     pw.SizedBox(height: 3),
     if (guests.isEmpty)
-      pw.Text('None.', style: const pw.TextStyle(fontSize: 9, color: _muted))
+      pw.Text(_reportText('None.'),
+          style: const pw.TextStyle(fontSize: 9, color: _muted))
     else
       for (final (i, g) in guests.indexed)
         pw.Text('${i + 1}. ${g.name}${g.note.isEmpty ? '' : ' (${g.note})'}',

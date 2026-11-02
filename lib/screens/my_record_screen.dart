@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../auth.dart';
+import '../l10n.dart';
 import '../dates.dart';
 import '../theme.dart';
 import '../models/employee.dart';
@@ -60,7 +60,8 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
       if (mounted) setState(() => _history = history);
     } catch (e) {
       if (mounted) {
-        setState(() => _historyError = 'Could not load your record: $e');
+        setState(() => _historyError =
+            tr('Could not load your record: {error}', {'error': '$e'}));
       }
     }
   }
@@ -118,18 +119,18 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
       final matches = await _service.findEmployeesByName(_nameController.text);
       setState(() {
         if (matches.isEmpty) {
-          _error = 'Name not found. Check the spelling and try again, '
-              'or ask at the restaurant.';
+          _error = tr('Name not found. Check the spelling and try again, '
+              'or ask at the restaurant.');
         } else if (matches.length == 1) {
           _foundEmployee = matches.single;
         } else if (matches.length > 8) {
-          _error = 'Many people match. Please type more of your name.';
+          _error = tr('Many people match. Please type more of your name.');
         } else {
           _candidates = matches;
         }
       });
     } catch (e) {
-      setState(() => _error = 'No connection. Please try again.');
+      setState(() => _error = tr('No connection. Please try again.'));
     } finally {
       if (mounted) setState(() => _searching = false);
     }
@@ -141,7 +142,7 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
 
     final pin = _pinController.text.trim();
     if (!RegExp(r'^[0-9]{4}$').hasMatch(pin)) {
-      setState(() => _error = 'The PIN is 4 numbers');
+      setState(() => _error = tr('The PIN is 4 numbers'));
       return;
     }
 
@@ -165,19 +166,20 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
                   name: employee.name,
                   department: employee.department,
                   pinSet: true);
-              _error = 'This name already has a PIN. Enter that PIN.';
+              _error = tr('This name already has a PIN. Enter that PIN.');
             });
           }
         }
       } else {
         ok = await employeeSignIn(employee, pin);
-        if (!ok) setState(() => _error = 'Wrong PIN. Please try again.');
+        if (!ok) setState(() => _error = tr('Wrong PIN. Please try again.'));
       }
       if (ok) await _loadRecord(employee.id);
     } on SignInProblem catch (e) {
       setState(() => _error = e.message);
     } catch (e) {
-      setState(() => _error = 'Something went wrong: $e');
+      setState(
+          () => _error = tr('Something went wrong: {error}', {'error': '$e'}));
     } finally {
       _pinController.clear();
       if (mounted) setState(() => _unlocking = false);
@@ -240,15 +242,16 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
   @override
   Widget build(BuildContext context) {
     final signedIn = _checkIns != null && _foundEmployee != null;
-    const titles = ['MY MEALS', 'MEAL PASS', 'MY PROFILE'];
+    final titles = [tr('MY MEALS'), tr('MEAL PASS'), tr('MY PROFILE')];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(signedIn ? titles[_tab] : 'MY MEALS'),
+        title: Text(signedIn ? titles[_tab] : tr('MY MEALS')),
         actions: [
+          const LanguageSwitch(),
           TextButton(
             onPressed: _changeRole,
-            child: const Text('Change role'),
+            child: Text(tr('Change role')),
           ),
         ],
       ),
@@ -280,19 +283,19 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
                 setState(() => _tab = i);
                 if (i == 2) _loadHistory();
               },
-              destinations: const [
+              destinations: [
                 NavigationDestination(
-                    icon: Icon(Icons.home_outlined),
-                    selectedIcon: Icon(Icons.home),
-                    label: 'Home'),
+                    icon: const Icon(Icons.home_outlined),
+                    selectedIcon: const Icon(Icons.home),
+                    label: tr('Home')),
                 NavigationDestination(
-                    icon: Icon(Icons.qr_code_2),
-                    selectedIcon: Icon(Icons.qr_code_2),
-                    label: 'Pass'),
+                    icon: const Icon(Icons.qr_code_2),
+                    selectedIcon: const Icon(Icons.qr_code_2),
+                    label: tr('Pass')),
                 NavigationDestination(
-                    icon: Icon(Icons.person_outline),
-                    selectedIcon: Icon(Icons.person),
-                    label: 'Profile'),
+                    icon: const Icon(Icons.person_outline),
+                    selectedIcon: const Icon(Icons.person),
+                    label: tr('Profile')),
               ],
             )
           : null,
@@ -311,11 +314,11 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('STEP 1 OF 2', style: giLabel()),
+        Text(tr('STEP 1 OF 2'), style: giLabel()),
         const SizedBox(height: 8),
-        Text('Find your name', style: giHeading(size: 28)),
+        Text(tr('Find your name'), style: giHeading(size: 28)),
         const SizedBox(height: 8),
-        Text('Type your name. Capital letters do not matter.',
+        Text(tr('Type your name. Capital letters do not matter.'),
             style: giBody(color: GiColors.muted)),
         const SizedBox(height: 20),
         TextField(
@@ -323,7 +326,7 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
           autofocus: true,
           textCapitalization: TextCapitalization.words,
           style: giBody(size: 20),
-          decoration: const InputDecoration(labelText: 'Your name'),
+          decoration: InputDecoration(labelText: tr('Your name')),
           onSubmitted: (_) => _searchName(),
         ),
         const SizedBox(height: 16),
@@ -335,12 +338,12 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
                   width: 20,
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white))
-              : const Text('Continue'),
+              : Text(tr('Continue')),
         ),
         _errorText(),
         if (_candidates.isNotEmpty) ...[
           const SizedBox(height: 24),
-          Text('WHICH ONE ARE YOU?', style: giLabel()),
+          Text(tr('WHICH ONE ARE YOU?'), style: giLabel()),
           const SizedBox(height: 8),
           for (final e in _candidates)
             Padding(
@@ -365,16 +368,19 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('STEP 2 OF 2', style: giLabel()),
+        Text(tr('STEP 2 OF 2'), style: giLabel()),
         const SizedBox(height: 8),
-        Text(isNewPin ? 'Create your PIN' : 'Enter your PIN',
+        Text(isNewPin ? tr('Create your PIN') : tr('Enter your PIN'),
             style: giHeading(size: 28)),
         const SizedBox(height: 8),
         Text(
           isNewPin
-              ? 'Welcome, ${_foundEmployee!.name}. Choose 4 numbers and '
-                  'remember them. Do not share your PIN with anyone.'
-              : '${_foundEmployee!.name}, enter your 4-number PIN.',
+              ? tr(
+                  'Welcome, {name}. Choose 4 numbers and remember them. '
+                  'Do not share your PIN with anyone.',
+                  {'name': _foundEmployee!.name})
+              : tr('{name}, enter your 4-number PIN.',
+                  {'name': _foundEmployee!.name}),
           style: giBody(color: GiColors.muted),
         ),
         const SizedBox(height: 20),
@@ -398,13 +404,13 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
                   width: 20,
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white))
-              : Text(isNewPin ? 'Save PIN and continue' : 'Sign in'),
+              : Text(isNewPin ? tr('Save PIN and continue') : tr('Sign in')),
         ),
         _errorText(),
         const SizedBox(height: 8),
-        TextButton(onPressed: _signOut, child: const Text('Not you? Go back')),
+        TextButton(onPressed: _signOut, child: Text(tr('Not you? Go back'))),
         if (!isNewPin)
-          Text('Forgotten your PIN? The restaurant manager can reset it.',
+          Text(tr('Forgotten your PIN? The restaurant manager can reset it.'),
               textAlign: TextAlign.center,
               style: giBody(size: 15, color: GiColors.muted)),
       ],
@@ -421,8 +427,8 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
 
   String get _greeting {
     final h = DateTime.now().hour;
-    final part =
-        h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening');
+    final part = tr(
+        h < 12 ? 'Good morning' : (h < 17 ? 'Good afternoon' : 'Good evening'));
     return '$part, ${_foundEmployee!.name.split(' ').first}';
   }
 
@@ -435,8 +441,7 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
       children: [
         Text(_greeting, style: giHeading(size: 26)),
         const SizedBox(height: 4),
-        Text(DateFormat('EEEE, d MMMM yyyy').format(DateTime.now()),
-            style: giBody(color: GiColors.muted)),
+        Text(fullDate(DateTime.now()), style: giBody(color: GiColors.muted)),
         const SizedBox(height: 22),
         _buildWeeklyPlan(),
         const SizedBox(height: 16),
@@ -444,23 +449,23 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text("TODAY'S STATUS", style: giLabel()),
+              Text(tr("TODAY'S STATUS"), style: giLabel()),
               const SizedBox(height: 10),
               meal != null
                   ? StatusLine(
                       icon: Icons.check_circle,
-                      text: 'Meal taken at '
-                          '${DateFormat('h:mm a').format(meal.timestamp.toDate())}',
+                      text: tr('Meal taken at {time}',
+                          {'time': clockTime(meal.timestamp.toDate())}),
                       color: GiColors.primary)
-                  : const StatusLine(
+                  : StatusLine(
                       icon: Icons.schedule,
-                      text: 'Not yet checked in',
+                      text: tr('Not yet checked in'),
                       color: GiColors.muted),
               const Divider(height: 28),
               Row(
                 children: [
                   Expanded(
-                    child: Text('Meals this month',
+                    child: Text(tr('Meals this month'),
                         style: giBody(color: GiColors.muted)),
                   ),
                   Text('$count', style: giHeading(size: 24)),
@@ -480,30 +485,29 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
   Widget _buildWeeklyPlan() {
     final locked = _planningDays.every((d) => _ownAnswer(dateKey(d)));
     return SectionCard(
-      header: 'Meal plan  |  next five working days',
+      header: tr('Meal plan  |  next five working days'),
       headerColor: GiColors.primary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
             locked
-                ? 'Your plan has been submitted and is locked.'
-                : 'Tick the days you will eat here, then submit. Days you '
-                    'have already submitted cannot be changed.',
+                ? tr('Your plan has been submitted and is locked.')
+                : tr('Tick the days you will eat here, then submit. Days you '
+                    'have already submitted cannot be changed.'),
             style: giBody(size: 16, color: GiColors.muted),
           ),
           const SizedBox(height: 10),
           for (final day in _planningDays)
             CheckboxListTile(
               contentPadding: EdgeInsets.zero,
-              title: Text(DateFormat('EEEE d MMMM').format(day)),
+              title: Text(dayAndDate(day)),
               subtitle: switch (_attendance[dateKey(day)]?.setBy) {
                 null => null,
-                'employee' => const Text('Submitted'),
+                'employee' => Text(tr('Submitted')),
                 'office' =>
-                  const Text('Entered by the office. You can change it.'),
-                _ =>
-                  const Text('Entered by the restaurant. You can change it.'),
+                  Text(tr('Entered by the office. You can change it.')),
+                _ => Text(tr('Entered by the restaurant. You can change it.')),
               },
               value: _planChoices[dateKey(day)] == true,
               onChanged: _ownAnswer(dateKey(day))
@@ -515,7 +519,7 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
           if (!locked)
             FilledButton(
               onPressed: _savingPlan ? null : _savePlan,
-              child: const Text('Submit meal plan'),
+              child: Text(tr('Submit meal plan')),
             ),
         ],
       ),
@@ -532,7 +536,9 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not submit the plan: $e')),
+          SnackBar(
+              content: Text(
+                  tr('Could not submit the plan: {error}', {'error': '$e'}))),
         );
       }
     } finally {
@@ -555,10 +561,10 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
               if (key == null) ...[
                 const Icon(Icons.qr_code_2, size: 64, color: GiColors.line),
                 const SizedBox(height: 12),
-                Text('Your pass has not been issued yet.',
+                Text(tr('Your pass has not been issued yet.'),
                     textAlign: TextAlign.center, style: giHeading(size: 20)),
                 const SizedBox(height: 6),
-                Text('Please ask at the restaurant counter.',
+                Text(tr('Please ask at the restaurant counter.'),
                     textAlign: TextAlign.center,
                     style: giBody(color: GiColors.muted)),
               ] else ...[
@@ -593,10 +599,11 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        Text('Scan on arrival',
+        Text(tr('Scan on arrival'),
             textAlign: TextAlign.center, style: giHeading(size: 24)),
         const SizedBox(height: 4),
-        Text('Hold this screen, or your printed pass, to the counter camera.',
+        Text(
+            tr('Hold this screen, or your printed pass, to the counter camera.'),
             textAlign: TextAlign.center,
             style: giBody(size: 16, color: GiColors.muted)),
         const SizedBox(height: 18),
@@ -604,17 +611,17 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('CHECK-IN STATUS', style: giLabel()),
+              Text(tr('CHECK-IN STATUS'), style: giLabel()),
               const SizedBox(height: 10),
               meal != null
                   ? StatusLine(
                       icon: Icons.check_circle,
-                      text: 'Checked in at '
-                          '${DateFormat('h:mm a').format(meal.timestamp.toDate())}',
+                      text: tr('Checked in at {time}',
+                          {'time': clockTime(meal.timestamp.toDate())}),
                       color: GiColors.primary)
-                  : const StatusLine(
+                  : StatusLine(
                       icon: Icons.radio_button_unchecked,
-                      text: 'Awaiting scan',
+                      text: tr('Awaiting scan'),
                       color: GiColors.accent),
             ],
           ),
@@ -669,7 +676,7 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
               onPressed: () => _stepHistoryMonth(-1),
             ),
             Expanded(
-              child: Text(DateFormat('MMMM yyyy').format(_historyMonth),
+              child: Text(monthAndYear(_historyMonth),
                   textAlign: TextAlign.center, style: giHeading(size: 20)),
             ),
             IconButton(
@@ -688,7 +695,7 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
         OutlinedButton.icon(
           onPressed: _signOut,
           icon: const Icon(Icons.logout),
-          label: const Text('Sign out'),
+          label: Text(tr('Sign out')),
         ),
       ],
     );
@@ -710,13 +717,14 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
     final ate = history.where((d) => d.meal != null).length;
 
     return SectionCard(
-      header: 'Ate on $ate of ${history.length} days',
+      header: tr('Ate on {n} of {total} days',
+          {'n': '$ate', 'total': '${history.length}'}),
       headerColor: GiColors.primary,
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: history.isEmpty
           ? Padding(
               padding: const EdgeInsets.all(20),
-              child: Text('No working days yet this month.',
+              child: Text(tr('No working days yet this month.'),
                   style: giBody(color: GiColors.muted)),
             )
           : Column(
@@ -728,19 +736,20 @@ class _MyRecordScreenState extends State<MyRecordScreen> {
                             color: GiColors.primary)
                         : const Icon(Icons.cancel_outlined,
                             color: GiColors.muted),
-                    title: Text(
-                        DateFormat('EEEE d MMMM').format(parseDateKey(d.date))),
+                    title: Text(dayAndDate(parseDateKey(d.date))),
                     subtitle: Text([
                       d.meal != null
                           ? (d.meal!.fromPaper
-                              ? 'Ate (signed paper list)'
-                              : 'Ate at ${DateFormat('h:mm a').format(d.meal!.timestamp.toDate())}')
-                          : 'Did not eat',
-                      switch (d.answer?.coming) {
+                              ? tr('Ate (signed paper list)')
+                              : tr('Ate at {time}', {
+                                  'time': clockTime(d.meal!.timestamp.toDate())
+                                }))
+                          : tr('Did not eat'),
+                      tr(switch (d.answer?.coming) {
                         true => 'said coming',
                         false => 'said not coming',
                         null => 'no answer',
-                      },
+                      }),
                     ].join('  ·  ')),
                   ),
               ],

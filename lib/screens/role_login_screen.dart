@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../auth.dart';
+import '../l10n.dart';
 import '../theme.dart';
 import 'home_screen.dart';
 import 'govt_report_screen.dart';
@@ -73,24 +74,28 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('STAFF MEAL SERVICE', style: giLabel()),
+                  Text(tr('STAFF MEAL SERVICE'), style: giLabel()),
                   const SizedBox(height: 8),
-                  Text('Sign in', style: giHeading(size: 34)),
+                  Row(children: [
+                    Expanded(
+                        child: Text(tr('Sign in'), style: giHeading(size: 34))),
+                    const LanguageSwitch(),
+                  ]),
                   const SizedBox(height: 24),
                   SegmentedButton<_LoginRole>(
-                    segments: const [
+                    segments: [
                       ButtonSegment(
                           value: _LoginRole.customer,
-                          label: Text('Customer'),
-                          icon: Icon(Icons.badge_outlined)),
+                          label: Text(tr('Customer')),
+                          icon: const Icon(Icons.badge_outlined)),
                       ButtonSegment(
                           value: _LoginRole.restaurant,
-                          label: Text('Restaurant'),
-                          icon: Icon(Icons.storefront_outlined)),
+                          label: Text(tr('Restaurant')),
+                          icon: const Icon(Icons.storefront_outlined)),
                       ButtonSegment(
                           value: _LoginRole.audit,
-                          label: Text('Audit'),
-                          icon: Icon(Icons.assessment_outlined)),
+                          label: Text(tr('Audit')),
+                          icon: const Icon(Icons.assessment_outlined)),
                     ],
                     selected: {_role},
                     onSelectionChanged: (value) =>
@@ -99,8 +104,8 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
                   const SizedBox(height: 24),
                   if (customer) ...[
                     Text(
-                        'Returning customer: use your name and PIN. '
-                        'First time here? Create your PIN below.',
+                        tr('Returning customer: use your name and PIN. '
+                            'First time here? Create your PIN below.'),
                         style: giBody(size: 18)),
                     const SizedBox(height: 18),
                     FilledButton(
@@ -108,7 +113,7 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
                           context,
                           MaterialPageRoute(
                               builder: (_) => const MyRecordScreen())),
-                      child: const Text('Open My Meals'),
+                      child: Text(tr('Open My Meals')),
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
@@ -117,7 +122,7 @@ class _RoleLoginScreenState extends State<RoleLoginScreen> {
                           MaterialPageRoute(
                               builder: (_) => const MyRecordScreen())),
                       icon: const Icon(Icons.person_add_alt_1),
-                      label: const Text('First time? Create customer PIN'),
+                      label: Text(tr('First time? Create customer PIN')),
                     ),
                   ] else ...[
                     Text(

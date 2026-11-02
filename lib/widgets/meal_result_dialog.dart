@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../l10n.dart';
 import '../theme.dart';
 import '../models/employee.dart';
 import '../services/firestore_service.dart';
@@ -62,7 +62,10 @@ class _MealResultDialogState extends State<_MealResultDialog> {
               Icon(logged ? Icons.check_circle : Icons.block,
                   color: statusColor, size: 72),
               const SizedBox(height: 16),
-              Text(logged ? 'CHECK-IN CONFIRMED' : 'ALREADY RECORDED TODAY',
+              Text(
+                  logged
+                      ? tr('CHECK-IN CONFIRMED')
+                      : tr('ALREADY RECORDED TODAY'),
                   style: giLabel(color: statusColor)),
               const SizedBox(height: 8),
               Text(widget.employee.name,
@@ -72,14 +75,14 @@ class _MealResultDialogState extends State<_MealResultDialog> {
                 [
                   if (widget.employee.department.isNotEmpty)
                     widget.employee.department,
-                  DateFormat('EEEE d MMMM, h:mm a').format(DateTime.now()),
+                  '${dayAndDate(DateTime.now())}, ${clockTime(DateTime.now())}',
                 ].join('  |  '),
                 textAlign: TextAlign.center,
                 style: giBody(size: 16, color: GiColors.muted),
               ),
               if (!logged) ...[
                 const SizedBox(height: 14),
-                Text('A second meal on the same day is not permitted.',
+                Text(tr('A second meal on the same day is not permitted.'),
                     textAlign: TextAlign.center,
                     style: giBody(
                         size: 17,
@@ -87,7 +90,7 @@ class _MealResultDialogState extends State<_MealResultDialog> {
                         weight: FontWeight.w600)),
               ],
               const SizedBox(height: 18),
-              TextButton(onPressed: _close, child: const Text('Close')),
+              TextButton(onPressed: _close, child: Text(tr('Close'))),
             ],
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../dates.dart';
+import '../l10n.dart';
 import '../theme.dart';
 import '../models/employee.dart';
 import '../services/firestore_service.dart';
@@ -46,7 +47,7 @@ class _ScanScreenState extends State<ScanScreen> {
     final badge = parseBadge(capture.barcodes.first.rawValue);
 
     if (badge == null) {
-      setState(() => _message = 'That is not a meal pass');
+      setState(() => _message = tr('That is not a meal pass'));
       return;
     }
 
@@ -61,7 +62,7 @@ class _ScanScreenState extends State<ScanScreen> {
       if (key == null || key != badge.key) {
         if (mounted) {
           setState(() => _message =
-              'This pass is no longer valid. Please ask at the counter.');
+              tr('This pass is no longer valid. Please ask at the counter.'));
         }
         return;
       }
@@ -71,7 +72,7 @@ class _ScanScreenState extends State<ScanScreen> {
       if (employee == null) {
         if (mounted) {
           setState(() =>
-              _message = 'Pass not recognised. Please ask at the counter.');
+              _message = tr('Pass not recognised. Please ask at the counter.'));
         }
         return;
       }
@@ -101,8 +102,9 @@ class _ScanScreenState extends State<ScanScreen> {
     return Scaffold(
       backgroundColor: GiColors.paper,
       appBar: AppBar(
-        title: const Text('SCAN MEAL PASS'),
+        title: Text(tr('SCAN MEAL PASS')),
         actions: [
+          const LanguageSwitch(),
           IconButton(
             icon: const Icon(Icons.cameraswitch),
             tooltip: 'Switch camera',
@@ -115,7 +117,7 @@ class _ScanScreenState extends State<ScanScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
             child: Text(
-              'Hold your meal pass in front of the camera',
+              tr('Hold your meal pass in front of the camera'),
               textAlign: TextAlign.center,
               style: GoogleFonts.publicSans(
                   color: GiColors.ink,
@@ -161,7 +163,7 @@ class _ScanScreenState extends State<ScanScreen> {
             color: _message == null ? GiColors.primary : GiColors.red,
             alignment: Alignment.center,
             child: Text(
-              _busy ? 'One moment…' : (_message ?? 'Ready'),
+              _busy ? tr('One moment…') : (_message ?? tr('Ready')),
               textAlign: TextAlign.center,
               style: GoogleFonts.publicSans(
                   color: Colors.white,

@@ -14,6 +14,7 @@ import '../services/firestore_service.dart';
 import '../widgets/meal_result_dialog.dart';
 import '../widgets/sign_in_gate.dart';
 import '../widgets/add_person_dialog.dart';
+import '../l10n.dart';
 import 'badges_screen.dart';
 import 'govt_report_screen.dart';
 import 'scan_screen.dart';
@@ -340,54 +341,58 @@ class _StaffHomeState extends State<_StaffHome> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        backgroundColor: GiColors.paper,
-        appBar: AppBar(
-          title: const Text('RESTAURANT COUNTER'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.assessment_outlined),
-              tooltip: 'Reports',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const GovtReportScreen()),
+    return ValueListenableBuilder<Lang>(
+      valueListenable: language,
+      builder: (context, _, __) => DefaultTabController(
+        length: 4,
+        child: Scaffold(
+          backgroundColor: GiColors.paper,
+          appBar: AppBar(
+            title: Text(tr('RESTAURANT COUNTER')),
+            actions: [
+              const LanguageSwitch(),
+              IconButton(
+                icon: const Icon(Icons.assessment_outlined),
+                tooltip: tr('Reports'),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const GovtReportScreen()),
+                ),
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.qr_code_2),
-              tooltip: 'Meal passes',
-              onPressed: _loadingEmployees ? null : _openBadges,
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Sign out',
-              onPressed: () => FirebaseAuth.instance.signOut(),
-            ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Check in'),
-              Tab(text: 'Today'),
-              Tab(text: 'Meal plan'),
-              Tab(text: 'Alerts'),
+              IconButton(
+                icon: const Icon(Icons.qr_code_2),
+                tooltip: tr('Meal passes'),
+                onPressed: _loadingEmployees ? null : _openBadges,
+              ),
+              IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: tr('Sign out'),
+                onPressed: () => FirebaseAuth.instance.signOut(),
+              ),
             ],
-          ),
-        ),
-        body: StreamBuilder<List<CheckIn>>(
-          stream: _service.streamTodayCheckins(),
-          builder: (context, snapshot) {
-            final todaysCheckins = snapshot.data ?? [];
-            return TabBarView(
-              children: [
-                _buildCheckInTab(todaysCheckins),
-                _buildLoggedTodayTab(todaysCheckins),
-                _buildPlanTab(),
-                _buildAlertsTab(),
+            bottom: TabBar(
+              tabs: [
+                Tab(text: tr('Check in')),
+                Tab(text: tr('Today')),
+                Tab(text: tr('Meal plan')),
+                Tab(text: tr('Alerts')),
               ],
-            );
-          },
+            ),
+          ),
+          body: StreamBuilder<List<CheckIn>>(
+            stream: _service.streamTodayCheckins(),
+            builder: (context, snapshot) {
+              final todaysCheckins = snapshot.data ?? [];
+              return TabBarView(
+                children: [
+                  _buildCheckInTab(todaysCheckins),
+                  _buildLoggedTodayTab(todaysCheckins),
+                  _buildPlanTab(),
+                  _buildAlertsTab(),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
