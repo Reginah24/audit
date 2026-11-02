@@ -125,8 +125,11 @@ class FirestoreService {
   /// `<date>_<employeeId>`, so even two tablets scanning at the same
   /// moment can't both write one.
   Future<MealResult> recordMeal(Employee employee, String method) async {
-    final date = todayKey();
+    return recordMealForDate(employee, todayKey(), method);
+  }
 
+  Future<MealResult> recordMealForDate(
+      Employee employee, String date, String method) async {
     // Check-ins from before ids were per-day have random ids, so look for
     // those by field as well.
     final existing = await _db
@@ -718,8 +721,13 @@ class FirestoreService {
 
   /// Records a meal for a visitor today. The time is set by the server.
   Future<void> addGuestMeal(String name, String note) async {
+    await addGuestMealForDate(name, note, todayKey());
+  }
+
+  Future<void> addGuestMealForDate(
+      String name, String note, String date) async {
     await _db.collection('guest_meals').add({
-      'date': todayKey(),
+      'date': date,
       'name': tidyName(name),
       'note': note.trim(),
       'timestamp': FieldValue.serverTimestamp(),

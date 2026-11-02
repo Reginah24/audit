@@ -97,7 +97,7 @@ service cloud.firestore {
         && id == request.resource.data.date + '_' + request.resource.data.employeeId
         && request.resource.data.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
         && request.resource.data.timestamp == request.time
-        && request.resource.data.method in ['scan', 'tap']
+        && request.resource.data.method in ['scan', 'tap', 'paper']
         && request.resource.data.recordedBy == request.auth.token.email
         && employeeExists(request.resource.data.employeeId);
       allow update: if false;

@@ -244,6 +244,134 @@ class _StaffHomeState extends State<_StaffHome> {
     }
   }
 
+  Future<void> _enterPaperList() async {
+        final date = await showDatePicker(
+          context: context,
+          initialDate: today().subtract(const Duration(days: 1)),
+          firstDate: DateTime(2024),
+          lastDate: today(),
+        );
+        if (date == null) return;
+        final key = dateKey(date);
+        final ate = <String>{};
+        final expected = <String, bool?>{};
+        final save = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => StatefulBuilder(
+            builder: (context, setDialogState) => AlertDialog(
+              title: Text(
+                  'Enter paper list - ${DateFormat('EEE d MMM').format(date)}'),
+              content: SizedBox(
+                width: 520,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final employee in _allEmployees)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: CheckboxListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(employee.name),
+                              value: ate.contains(employee.id),
+                              onChanged: (value) => setDialogState(() {
+                                if (value == true) {
+                                  ate.add(employee.id);
+                                  expected[employee.id] ??= true;
+                                } else {
+                                  ate.remove(employee.id);
+                                }
+                              }),
+                            ),
+                          ),
+                          DropdownButton<bool?>(
+                            value: expected[employee.id],
+                            hint: const Text('Expected?'),
+                            items: const [
+                              DropdownMenuItem(value: true, child: Text('Yes')),
+                              DropdownMenuItem(value: false, child: Text('No')),
+                              DropdownMenuItem(
+                                  value: null, child: Text('None')),
+                            ],
+                            onChanged: (value) => setDialogState(
+                                () => expected[employee.id] = value),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text('Cancel')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(dialogContext, true),
+                    child: const Text('Save paper list')),
+              ],
+            ),
+          ),
+        );
+        if (save != true) return;
+
+        try {
+          for (final employee in _allEmployees) {
+            final status = expected[employee.id];
+            if (status != null) {
+              await _service.setAttendance(
+                  employee, key, status, 'restaurant-paper-list');
+            }
+            if (ate.contains(employee.id)) {
+              await _service.recordMealForDate(employee, key, 'paper');
+            }
+          }
+          if (mounted) {
+            final name = TextEditingController();
+            final note = TextEditingController();
+            final addGuest = await showDialog<bool>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Text('Add guest for ${dateKey(date)}'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                        controller: name,
+                        decoration:
+                            const InputDecoration(labelText: 'Guest name')),
+                    TextField(
+                        controller: note,
+                        decoration: const InputDecoration(labelText: 'Note')),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Skip')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Add guest')),
+                ],
+              ),
+            );
+            if (addGuest == true && name.text.trim().isNotEmpty) {
+              await _service.addGuestMealForDate(name.text, note.text, key);
+            }
+            name.dispose();
+            note.dispose();
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('Paper list saved for ${dateKey(date)}')));
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Could not save paper list: $e')));
+          }
+        }
+  }
+
   Future<void> _removeGuest(GuestMeal g) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -363,6 +491,11 @@ class _StaffHomeState extends State<_StaffHome> {
                 icon: const Icon(Icons.qr_code_2),
                 tooltip: tr('Meal passes'),
                 onPressed: _loadingEmployees ? null : _openBadges,
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_calendar),
+                tooltip: 'Enter paper list',
+                onPressed: _loadingEmployees ? null : _enterPaperList,
               ),
               IconButton(
                 icon: const Icon(Icons.logout),
