@@ -205,14 +205,19 @@ Future<Uint8List> buildMonthReportPdf(
           style:
               const pw.TextStyle(fontWeight: pw.FontWeight.bold, color: _ink)),
       pw.SizedBox(height: 6),
-      if (report.totalNoShows == 0)
+      if (!report.rows.any((r) => r.listedButDidNotCome > 0))
         pw.Text('None.', style: const pw.TextStyle(fontSize: 9, color: _muted))
       else
         _table(
           ['Name', 'Department', 'Days'],
           [
-            for (final row in report.rows.where((r) => r.noShows > 0))
-              [row.employee.name, row.employee.department, '${row.noShows}'],
+            for (final row
+                in report.rows.where((r) => r.listedButDidNotCome > 0))
+              [
+                row.employee.name,
+                row.employee.department,
+                '${row.listedButDidNotCome}'
+              ],
           ],
         ),
       pw.SizedBox(height: 18),

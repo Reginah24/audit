@@ -345,11 +345,15 @@ class _ReportState extends State<_Report> {
         Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ExpansionTile(
-            title: Text('On the list but did not come: ${report.noShows}',
+            title: Text(
+                'On the list but did not come: '
+                '${report.rows.where((row) => row.listedButDidNotCome).length}',
                 style: GoogleFonts.publicSans(fontWeight: FontWeight.w700)),
             children: [
-              if (report.noShows == 0) const ListTile(title: Text('None')),
-              for (final row in report.rows.where((row) => row.noShow))
+              if (!report.rows.any((row) => row.listedButDidNotCome))
+                const ListTile(title: Text('None')),
+              for (final row
+                  in report.rows.where((row) => row.listedButDidNotCome))
                 ListTile(
                   dense: true,
                   leading: const Icon(Icons.person_off, color: GiColors.red),
@@ -533,17 +537,21 @@ class _ReportState extends State<_Report> {
         Card(
           margin: const EdgeInsets.only(top: 12),
           child: ExpansionTile(
-            title: Text('On the list but did not come: ${report.totalNoShows}',
+            title: Text(
+                'On the list but did not come: '
+                '${report.rows.where((row) => row.listedButDidNotCome > 0).length}',
                 style: GoogleFonts.publicSans(fontWeight: FontWeight.w700)),
             children: [
-              if (report.totalNoShows == 0) const ListTile(title: Text('None')),
-              for (final row in report.rows.where((row) => row.noShows > 0))
+              if (!report.rows.any((row) => row.listedButDidNotCome > 0))
+                const ListTile(title: Text('None')),
+              for (final row
+                  in report.rows.where((row) => row.listedButDidNotCome > 0))
                 ListTile(
                   dense: true,
                   leading: const Icon(Icons.person_off, color: GiColors.red),
                   title: Text(row.employee.name),
-                  subtitle: Text(
-                      '${row.noShows} ${row.noShows == 1 ? 'day' : 'days'}'),
+                  subtitle: Text('${row.listedButDidNotCome} '
+                      '${row.listedButDidNotCome == 1 ? 'day' : 'days'}'),
                 ),
             ],
           ),

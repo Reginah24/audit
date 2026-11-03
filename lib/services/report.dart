@@ -18,6 +18,10 @@ class DayRow {
   /// Said they'd come, food was cooked, but they never checked in.
   bool get noShow => saidYes && !ate;
 
+  /// Was listed/expected, did not eat, and did not explicitly say no.
+  /// This includes people who never submitted an attendance answer.
+  bool get listedButDidNotCome => !ate && !saidNo;
+
   /// Ate without having said yes — the kitchen didn't plan for them.
   bool get unplanned => ate && !saidYes;
 
@@ -121,6 +125,7 @@ class MonthRow {
   int meals = 0;
   int booked = 0;
   int noShows = 0;
+  int listedButDidNotCome = 0;
   int unplanned = 0;
 
   MonthRow(this.employee);
@@ -173,6 +178,7 @@ class MonthReport {
         if (r.ate) row.meals++;
         if (r.saidYes) row.booked++;
         if (r.noShow) row.noShows++;
+        if (r.listedButDidNotCome) row.listedButDidNotCome++;
         if (r.unplanned) row.unplanned++;
       }
     }
