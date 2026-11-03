@@ -239,6 +239,7 @@ const _rw = <String, String>{
   'Total who ate': 'Abafashe amafunguro uyu munsi',
   'Not on the list, but came': 'Abatari kuri list baje',
   'Not to come, but came': 'Abatarikuza baje',
+  'On the list but did not come': 'Abari kuri list bataje',
   'Guests': 'Abashitsi',
   'Staff': 'Abakozi',
   'None': 'Nta n’umwe',

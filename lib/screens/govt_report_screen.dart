@@ -346,7 +346,7 @@ class _ReportState extends State<_Report> {
           margin: const EdgeInsets.only(bottom: 8),
           child: ExpansionTile(
             title: Text(
-                'On the list but did not come: '
+                '${tr('On the list but did not come')}: '
                 '${report.rows.where((row) => row.listedButDidNotCome).length}',
                 style: GoogleFonts.publicSans(fontWeight: FontWeight.w700)),
             children: [
@@ -538,7 +538,7 @@ class _ReportState extends State<_Report> {
           margin: const EdgeInsets.only(top: 12),
           child: ExpansionTile(
             title: Text(
-                'On the list but did not come: '
+                '${tr('On the list but did not come')}: '
                 '${report.rows.where((row) => row.listedButDidNotCome > 0).length}',
                 style: GoogleFonts.publicSans(fontWeight: FontWeight.w700)),
             children: [
