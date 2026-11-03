@@ -345,6 +345,23 @@ class _ReportState extends State<_Report> {
         Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: ExpansionTile(
+            title: Text('On the list but did not come: ${report.noShows}',
+                style: GoogleFonts.publicSans(fontWeight: FontWeight.w700)),
+            children: [
+              if (report.noShows == 0) const ListTile(title: Text('None')),
+              for (final row in report.rows.where((row) => row.noShow))
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.person_off, color: GiColors.red),
+                  title: Text(row.employee.name),
+                  subtitle: Text(row.employee.department),
+                ),
+            ],
+          ),
+        ),
+        Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ExpansionTile(
             title: Text('Said they will not eat: ${notComing.length}',
                 style: GoogleFonts.publicSans(fontWeight: FontWeight.w700)),
             children: [
@@ -510,6 +527,24 @@ class _ReportState extends State<_Report> {
                 '${report.totalNoShows}',
                 '${report.totalUnplanned}',
               ], header: true),
+            ],
+          ),
+        ),
+        Card(
+          margin: const EdgeInsets.only(top: 12),
+          child: ExpansionTile(
+            title: Text('On the list but did not come: ${report.totalNoShows}',
+                style: GoogleFonts.publicSans(fontWeight: FontWeight.w700)),
+            children: [
+              if (report.totalNoShows == 0) const ListTile(title: Text('None')),
+              for (final row in report.rows.where((row) => row.noShows > 0))
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.person_off, color: GiColors.red),
+                  title: Text(row.employee.name),
+                  subtitle: Text(
+                      '${row.noShows} ${row.noShows == 1 ? 'day' : 'days'}'),
+                ),
             ],
           ),
         ),

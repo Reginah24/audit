@@ -201,6 +201,21 @@ Future<Uint8List> buildMonthReportPdf(
         },
       ),
       pw.SizedBox(height: 18),
+      pw.Text('On the list but did not come',
+          style:
+              const pw.TextStyle(fontWeight: pw.FontWeight.bold, color: _ink)),
+      pw.SizedBox(height: 6),
+      if (report.totalNoShows == 0)
+        pw.Text('None.', style: const pw.TextStyle(fontSize: 9, color: _muted))
+      else
+        _table(
+          ['Name', 'Department', 'Days'],
+          [
+            for (final row in report.rows.where((r) => r.noShows > 0))
+              [row.employee.name, row.employee.department, '${row.noShows}'],
+          ],
+        ),
+      pw.SizedBox(height: 18),
       pw.Text('Per day',
           style:
               const pw.TextStyle(fontWeight: pw.FontWeight.bold, color: _ink)),
@@ -238,6 +253,7 @@ List<pw.Widget> _daySummarySection(DayReport report, List<GuestMeal> guests) {
       _reportText('Not to come, but came'),
       report.rows.where((r) => r.ateSaidNo)
     ),
+    ('On the list but did not come', report.rows.where((r) => r.noShow)),
   ];
   const bold = pw.TextStyle(fontWeight: pw.FontWeight.bold, color: _ink);
   return [
