@@ -203,9 +203,12 @@ class FirestoreService {
     return added;
   }
 
-  /// Adds everyone in [roster] who isn't in the database yet and updates
-  /// departments. Nobody is taken off the list here: people added at the
-  /// counter stay, and the office removes people with the Remove button.
+  /// Adds everyone in [roster] who isn't in the database yet, updates
+  /// departments, and renames people stored under a different spelling
+  /// (same words, or a 'formerly' name) to the roster's spelling; their
+  /// meals stay with them. Nobody is taken off the list here: people added
+  /// at the counter stay, and the office removes people with the Remove
+  /// button.
   /// A name that is in the database more than once (from older versions)
   /// is cleaned up — one record is kept, the others switched off. Returns
   /// how many were added.
@@ -215,10 +218,12 @@ class FirestoreService {
     for (final employee in all) {
       byName.putIfAbsent(normalizeName(employee.name), () => []).add(employee);
     }
-    final renamedFrom = {
-      for (final e in all)
-        for (final n in e.formerNames) normalizeName(n),
-    };
+    final byFormerName = <String, List<Employee>>{};
+    for (final e in all) {
+      for (final n in e.formerNames) {
+        byFormerName.putIfAbsent(normalizeName(n), () => []).add(e);
+      }
+    }
     final writes =
         <(DocumentReference<Map<String, dynamic>>, Map<String, dynamic>)>[];
     final seen = <String>{};
@@ -229,10 +234,18 @@ class FirestoreService {
       final key = normalizeName(name);
       if (name.length < 2 || !seen.add(key)) continue;
       final department = tidyName(person['department'] ?? '');
-      final existing = byName[key];
+      // Find the person under this spelling, or one they were stored or
+      // renamed under before, so they are renamed rather than added twice.
+      final keys = [
+        key,
+        for (final n in (person['formerly'] ?? '').split('|'))
+          if (n.trim().isNotEmpty) normalizeName(n),
+      ];
+      List<Employee>? existing;
+      for (final k in keys) {
+        existing ??= byName[k] ?? byFormerName[k];
+      }
       if (existing == null) {
-        // The office corrected this spelling; don't add the old one back.
-        if (renamedFrom.contains(key)) continue;
         writes.add((
           _db.collection('employees').doc(),
           _newPerson(name, department, 'roster'),
@@ -245,6 +258,10 @@ class FirestoreService {
           {
             if (keep.removedBy == null) 'active': true,
             if (department.isNotEmpty) 'department': department,
+            if (keep.name != name) ...{
+              'name': name,
+              'formerNames': FieldValue.arrayUnion([keep.name]),
+            },
           },
         ));
       }

@@ -1,7 +1,7 @@
-import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../dates.dart';
@@ -19,6 +19,7 @@ import 'roster_screen.dart';
 import 'weekly_plan_screen.dart';
 
 enum _Mode { day, month }
+enum _MonthView { summary, attendance }
 
 enum _DayFilter { all, ate, didNotEat, noShow, ateSaidNo, unregistered }
 
@@ -56,6 +57,7 @@ class _ReportState extends State<_Report> {
   final _service = FirestoreService();
 
   _Mode _mode = _Mode.day;
+  _MonthView _monthView = _MonthView.summary;
   _DayFilter _filter = _DayFilter.all;
   DateTime _selectedDay = today();
   DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
@@ -236,6 +238,20 @@ class _ReportState extends State<_Report> {
             _loadReport();
           },
         ),
+        if (_mode == _Mode.month) ...[
+          const SizedBox(height: 8),
+          SegmentedButton<_MonthView>(
+            segments: const [
+              ButtonSegment(
+                  value: _MonthView.summary, label: Text('Summary')),
+              ButtonSegment(
+                  value: _MonthView.attendance,
+                  label: Text('1/0 attendance list')),
+            ],
+            selected: {_monthView},
+            onSelectionChanged: (s) => setState(() => _monthView = s.first),
+          ),
+        ],
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -454,6 +470,9 @@ class _ReportState extends State<_Report> {
   Widget _buildMonth() {
     final report = _month;
     if (report == null) return const SizedBox.shrink();
+    if (_monthView == _MonthView.attendance) {
+      return _buildAttendanceList(report);
+    }
     if (report.days.isEmpty) {
       return Center(
           child: Text('No meals logged for this month',
@@ -559,6 +578,132 @@ class _ReportState extends State<_Report> {
         _AddedList(report.added),
         _CorrectionsList(report.corrections),
       ],
+    );
+  }
+
+  Widget _buildAttendanceList(MonthReport report) {
+    if (report.attendanceDates.isEmpty) {
+      return const Center(child: Text('No attendance recorded for this month'));
+    }
+
+    final columns = report.attendanceDates;
+    String day(String date) => DateFormat('d').format(parseDateKey(date));
+
+    // Staff first, then guests (paid for too), each with the days they ate.
+    final people = <(String, Set<String>)>[
+      for (final r in report.rows)
+        (
+          r.employee.name,
+          {
+            for (final d in columns)
+              if (report.ateOn(r.employee.id, d)) d
+          }
+        ),
+    ];
+    final guestDays = <String, (String, Set<String>)>{};
+    for (final g in _guests) {
+      final name = g.name.trim().replaceAll(RegExp(r'\s+'), ' ');
+      if (name.isEmpty) continue;
+      guestDays
+          .putIfAbsent(name.toLowerCase(), () => ('$name (guest)', {}))
+          .$2
+          .add(g.date);
+    }
+    people.addAll(guestDays.values.toList()
+      ..sort((a, b) => a.$1.toLowerCase().compareTo(b.$1.toLowerCase())));
+
+    int personTotal(Set<String> ate) => columns.where(ate.contains).length;
+    final dayTotals = [
+      for (final date in columns)
+        people.where((p) => p.$2.contains(date)).length,
+    ];
+    final grandTotal = dayTotals.fold(0, (total, n) => total + n);
+    return ListView(
+      children: [
+        Text(
+          '1 = ate, 0 = did not eat. Guests are listed after staff. '
+          'Scroll horizontally to see all days.',
+          style: GoogleFonts.publicSans(color: GiColors.muted),
+        ),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.copy),
+            label: const Text('Copy for Excel'),
+            onPressed: () async {
+              // Tab-separated so it pastes straight into Excel cells.
+              final lines = [
+                ['S/N', 'Names', ...columns.map(day), 'Total'].join('\t'),
+                for (final (i, (name, ate)) in people.indexed)
+                  [
+                    i + 1,
+                    name,
+                    for (final date in columns) ate.contains(date) ? 1 : 0,
+                    personTotal(ate),
+                  ].join('\t'),
+                ['', 'Total', ...dayTotals, grandTotal].join('\t'),
+              ];
+              await Clipboard.setData(ClipboardData(text: lines.join('\n')));
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Copied. Paste into cell A1 in Excel.')));
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Table(
+            defaultColumnWidth: const FixedColumnWidth(54),
+            border: TableBorder.all(color: GiColors.line),
+            columnWidths: const {1: FixedColumnWidth(230)},
+            children: [
+              TableRow(
+                decoration: const BoxDecoration(color: GiColors.card),
+                children: [
+                  _gridCell('S/N', header: true),
+                  _gridCell('Names', header: true),
+                  for (final date in columns) _gridCell(day(date), header: true),
+                  _gridCell('Total', header: true),
+                ],
+              ),
+              for (final (i, (name, ate)) in people.indexed)
+                TableRow(
+                  children: [
+                    _gridCell('${i + 1}'),
+                    _gridCell(name),
+                    for (final date in columns)
+                      _gridCell(ate.contains(date) ? '1' : '0'),
+                    _gridCell('${personTotal(ate)}', header: true),
+                  ],
+                ),
+              TableRow(
+                decoration: const BoxDecoration(color: GiColors.card),
+                children: [
+                  _gridCell(''),
+                  _gridCell('Total', header: true),
+                  for (final n in dayTotals) _gridCell('$n', header: true),
+                  _gridCell('$grandTotal', header: true),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _gridCell(String value, {bool header = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: Text(
+        value,
+        textAlign: header ? TextAlign.center : TextAlign.left,
+        style: GoogleFonts.publicSans(
+          fontWeight: header ? FontWeight.w700 : FontWeight.normal,
+        ),
+      ),
     );
   }
 }

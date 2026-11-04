@@ -131,6 +131,10 @@ class MonthRow {
   MonthRow(this.employee);
 }
 
+/// First working day of the tender; the attendance grid never shows
+/// days before it.
+const tenderStartKey = '2026-10-05';
+
 /// One day's totals for the monthly report.
 class MonthDay {
   final String date;
@@ -145,9 +149,17 @@ class MonthReport {
   final List<MonthDay> days;
   final List<VoidedCheckIn> corrections;
   final List<Employee> added;
+  final Set<String> mealKeys;
+  final List<String> attendanceDates;
 
   MonthReport(this.rows, this.days,
-      [this.corrections = const [], this.added = const []]);
+      [this.corrections = const [],
+      this.added = const [],
+      this.mealKeys = const {},
+      this.attendanceDates = const []]);
+
+  bool ateOn(String employeeId, String date) =>
+      mealKeys.contains('$date|$employeeId');
 
   /// [todayKey] is the current date; bookings after it are for days that
   /// haven't happened yet, so they can't be no-shows. [startKey]/[endKey]
@@ -183,12 +195,30 @@ class MonthReport {
       }
     }
 
+    final gridDates = <String>[];
+    if (startKey.isNotEmpty && endKey.isNotEmpty) {
+      final start = parseDateKey(startKey.compareTo(tenderStartKey) < 0
+          ? tenderStartKey
+          : startKey);
+      final end = parseDateKey(endKey);
+      for (var date = start;
+          !date.isAfter(end) && dateKey(date).compareTo(todayKey) <= 0;
+          date = DateTime(date.year, date.month, date.day + 1)) {
+        if (date.weekday < DateTime.saturday) gridDates.add(dateKey(date));
+      }
+    }
+
     final rows = byId.values.toList()
       ..sort((a, b) => a.employee.name
           .toLowerCase()
           .compareTo(b.employee.name.toLowerCase()));
     return MonthReport(
-        rows, days, voided, addedAtCounter(employees, startKey, endKey));
+        rows,
+        days,
+        voided,
+        addedAtCounter(employees, startKey, endKey),
+        checkIns.map((c) => '${c.date}|${c.employeeId}').toSet(),
+        gridDates);
   }
 
   int get totalMeals => rows.fold(0, (sum, r) => sum + r.meals);

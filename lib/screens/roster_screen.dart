@@ -159,9 +159,10 @@ class _RosterScreenState extends State<RosterScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Load the prepared staff list?'),
         content: const Text(
-            'Adds anyone from the prepared list who is not here yet and '
-            'updates departments. Nobody is removed, and a name already on '
-            'the list is never added twice.'),
+            'Adds anyone from the prepared list who is not here yet, '
+            'updates departments and corrects names to the list\'s '
+            'spelling. Nobody is removed, and a name already on the list '
+            'is never added twice.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
